@@ -1,0 +1,2140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ETMS • Employee Transport Management</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    :root {
+      --primary: #0f2b4b;
+      --primary-light: #2563eb;
+      --sidebar-bg: #0a1a2b;
+      --sidebar-hover: #1e2f44;
+      --card-bg: #ffffff;
+      --bg: #f1f5f9;
+      --border: #e2e8f0;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --info: #06b6d4;
+      --gray: #64748b;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: #1e293b; font-size: 14px; }
+
+    /* Loading */
+    .loading-overlay {
+      position: fixed; inset: 0; background: linear-gradient(135deg,#0f172a,#1e3a8a);
+      display: flex; align-items: center; justify-content: center; z-index: 4000;
+      color: #fff; flex-direction: column; gap: 16px;
+    }
+    .loading-overlay .spinner {
+      width: 48px; height: 48px; border: 4px solid rgba(255,255,255,.2);
+      border-top-color: #60a5fa; border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Login */
+    .login-screen {
+      position: fixed; inset: 0; background: linear-gradient(135deg, #0f172a, #1e3a8a);
+      display: flex; align-items: center; justify-content: center; z-index: 3000; padding: 20px;
+    }
+    .login-card {
+      background: #fff; border-radius: 20px; padding: 40px 34px; width: 100%; max-width: 400px;
+      box-shadow: 0 25px 60px rgba(0,0,0,.4);
+    }
+    .login-card .logo { text-align: center; font-size: 46px; color: var(--primary-light); margin-bottom: 8px; }
+    .login-card h2 { text-align: center; font-weight: 700; font-size: 20px; margin-bottom: 4px; }
+    .login-card .sub { text-align: center; color: var(--gray); font-size: 13px; margin-bottom: 26px; }
+
+    /* Layout */
+    .app-container { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: 240px; background: var(--sidebar-bg); color: #cbd5e1; flex-shrink: 0;
+      overflow-y: auto; height: 100vh; position: sticky; top: 0; transition: transform 0.25s;
+    }
+    .sidebar .brand {
+      padding: 18px 20px; font-weight: 700; color: #fff; font-size: 16px;
+      border-bottom: 1px solid #1e293b; display: flex; align-items: center; gap: 10px;
+    }
+    .sidebar .brand i { color: #60a5fa; font-size: 22px; }
+    .sidebar nav a {
+      display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: #cbd5e1;
+      text-decoration: none; font-size: 13.5px; border-left: 3px solid transparent;
+      cursor: pointer; transition: 0.15s;
+    }
+    .sidebar nav a:hover { background: var(--sidebar-hover); color: #fff; }
+    .sidebar nav a.active { background: var(--sidebar-hover); color: #fff; border-left-color: #60a5fa; }
+    .sidebar nav a i { width: 18px; text-align: center; font-size: 14px; }
+    .sidebar nav a.hidden { display: none; }
+    .sidebar .section-label {
+      padding: 14px 20px 6px; font-size: 10.5px; text-transform: uppercase;
+      letter-spacing: 1px; color: #475569; font-weight: 600;
+    }
+    .sidebar .section-label.hidden { display: none; }
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+    /* Topbar */
+    .topbar {
+      background: #fff; border-bottom: 1px solid var(--border); padding: 10px 22px;
+      display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 100; flex-wrap: wrap;
+    }
+    .topbar .menu-toggle { display: none; background: none; border: none; font-size: 20px; color: var(--primary); }
+    .topbar .search-box { flex: 1; max-width: 420px; position: relative; }
+    .topbar .search-box input {
+      width: 100%; padding: 8px 12px 8px 34px; border: 1px solid var(--border);
+      border-radius: 8px; font-size: 13px; background: #f8fafc;
+    }
+    .topbar .search-box i { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--gray); font-size: 13px; }
+    .topbar .right { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+    .sync-dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px;
+    }
+    .sync-dot.online { background: var(--success); box-shadow: 0 0 0 3px rgba(16,185,129,.2); }
+    .sync-dot.offline { background: var(--danger); }
+    .sync-status { font-size: 12px; color: var(--gray); font-weight: 600; }
+    .user-chip {
+      display: flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px;
+      background: #f1f5f9; border-radius: 20px; cursor: pointer; font-size: 12.5px; font-weight: 600;
+    }
+    .user-chip .avatar {
+      width: 28px; height: 28px; border-radius: 50%; background: var(--primary);
+      color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px;
+    }
+
+    /* Page */
+    .page { padding: 22px; flex: 1; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+    .page-header h2 { font-size: 22px; font-weight: 700; margin: 0; }
+    .page-header .sub { color: var(--gray); font-size: 13px; margin-top: 3px; }
+
+    .stat-card {
+      background: var(--card-bg); border-radius: 12px; padding: 18px; border: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: flex-start; transition: 0.15s;
+    }
+    .stat-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,.06); transform: translateY(-2px); }
+    .stat-card .label { font-size: 11.5px; color: var(--gray); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+    .stat-card .value { font-size: 26px; font-weight: 700; margin-top: 6px; color: #0f172a; }
+    .stat-card .icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; color: #fff; }
+    .icon-blue { background: linear-gradient(135deg,#3b82f6,#1d4ed8); }
+    .icon-green { background: linear-gradient(135deg,#10b981,#047857); }
+    .icon-orange { background: linear-gradient(135deg,#f59e0b,#d97706); }
+    .icon-red { background: linear-gradient(135deg,#ef4444,#b91c1c); }
+    .icon-purple { background: linear-gradient(135deg,#8b5cf6,#6d28d9); }
+    .icon-cyan { background: linear-gradient(135deg,#06b6d4,#0e7490); }
+    .icon-gray { background: linear-gradient(135deg,#64748b,#334155); }
+
+    .panel { background: var(--card-bg); border-radius: 12px; border: 1px solid var(--border); margin-bottom: 18px; }
+    .panel-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .panel-header h5 { font-size: 15px; font-weight: 700; margin: 0; }
+    .panel-body { padding: 18px; }
+
+    .table-wrap { overflow-x: auto; }
+    table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.data-table th {
+      background: #f8fafc; text-align: left; padding: 10px 12px; font-weight: 600;
+      color: #475569; font-size: 11.5px; text-transform: uppercase; letter-spacing: .3px;
+      border-bottom: 1px solid var(--border); cursor: pointer; white-space: nowrap;
+    }
+    table.data-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    table.data-table tbody tr:hover { background: #f8fafc; }
+    .actions { display: flex; gap: 5px; }
+
+    .btn { border-radius: 8px; font-size: 13px; font-weight: 600; padding: 7px 16px; }
+    .btn-sm { font-size: 12px; padding: 5px 10px; }
+    .btn-primary { background: var(--primary); border-color: var(--primary); }
+    .btn-primary:hover { background: #0a1f38; border-color: #0a1f38; }
+    .btn-icon {
+      width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center;
+      justify-content: center; border-radius: 8px; border: 1px solid var(--border);
+      background: #fff; color: #475569;
+    }
+    .btn-icon:hover { background: #f1f5f9; }
+    .btn-icon.danger { color: var(--danger); border-color: #fecaca; }
+    .btn-icon.danger:hover { background: #fef2f2; }
+
+    .filter-bar {
+      display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+    }
+    .filter-bar .form-group { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
+    .filter-bar label { font-size: 11px; font-weight: 600; color: var(--gray); text-transform: uppercase; }
+    .filter-bar input, .filter-bar select { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+
+    .badge-status { padding: 4px 10px; border-radius: 14px; font-size: 11px; font-weight: 600; display: inline-block; }
+    .badge-active { background: #d1fae5; color: #047857; }
+    .badge-inactive { background: #fee2e2; color: #b91c1c; }
+    .badge-warn { background: #fef3c7; color: #92400e; }
+    .badge-info { background: #cffafe; color: #0e7490; }
+    .badge-gray { background: #e2e8f0; color: #475569; }
+
+    .pagination-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 18px; border-top: 1px solid var(--border); flex-wrap: wrap; gap: 10px;
+      font-size: 12.5px; color: var(--gray);
+    }
+    .pagination-bar .pages { display: flex; gap: 4px; }
+    .pagination-bar .pages button {
+      min-width: 32px; height: 32px; padding: 0 8px; border: 1px solid var(--border);
+      background: #fff; border-radius: 6px; cursor: pointer; font-size: 12.5px;
+    }
+    .pagination-bar .pages button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .pagination-bar .pages button:disabled { opacity: .4; cursor: not-allowed; }
+
+    .chart-box { position: relative; height: 260px; }
+
+    .modal-backdrop-custom {
+      position: fixed; inset: 0; background: rgba(15,23,42,.5);
+      display: none; align-items: center; justify-content: center; z-index: 2000; padding: 16px;
+    }
+    .modal-backdrop-custom.show { display: flex; }
+    .modal-custom {
+      background: #fff; border-radius: 14px; width: 100%; max-width: 720px;
+      max-height: 92vh; overflow-y: auto; box-shadow: 0 20px 40px rgba(0,0,0,.2);
+    }
+    .modal-custom .modal-head {
+      padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex;
+      justify-content: space-between; align-items: center; position: sticky; top: 0; background: #fff; z-index: 5;
+    }
+    .modal-custom .modal-head h4 { margin: 0; font-size: 17px; font-weight: 700; }
+    .modal-custom .modal-body { padding: 20px; }
+    .modal-custom .modal-foot {
+      padding: 14px 20px; border-top: 1px solid var(--border); display: flex;
+      justify-content: flex-end; gap: 8px; position: sticky; bottom: 0; background: #fff;
+    }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-grid .full { grid-column: 1 / -1; }
+    .form-group label { font-size: 12.5px; font-weight: 600; color: #334155; margin-bottom: 4px; display: block; }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13.5px;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+      outline: none; border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+    }
+
+    .alert-item { padding: 12px 16px; border-left: 4px solid; border-radius: 8px; margin-bottom: 8px; font-size: 13px; }
+    .alert-item.warn { border-color: var(--warning); background: #fffbeb; }
+    .alert-item.danger { border-color: var(--danger); background: #fef2f2; }
+    .alert-item.info { border-color: var(--info); background: #ecfeff; }
+    .alert-item.success { border-color: var(--success); background: #ecfdf5; }
+
+    .perm-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px;
+      padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border);
+    }
+    .perm-grid label {
+      display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500;
+      color: #334155; cursor: pointer; padding: 4px 0;
+    }
+    .perm-grid input[type="checkbox"] { width: auto; }
+
+    .report-card {
+      background: var(--card-bg); border-radius: 12px; border: 1px solid var(--border);
+      padding: 20px; transition: 0.15s; height: 100%;
+      display: flex; flex-direction: column;
+    }
+    .report-card:hover { box-shadow: 0 8px 22px rgba(0,0,0,.07); transform: translateY(-2px); }
+    .report-card .head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+    .report-card .head .icon {
+      width: 48px; height: 48px; border-radius: 12px; display: flex;
+      align-items: center; justify-content: center; font-size: 20px; color: #fff;
+    }
+    .report-card .head h6 { font-weight: 700; margin: 0; font-size: 15px; }
+    .report-card .head p { color: var(--gray); font-size: 12px; margin: 2px 0 0; }
+    .report-card .preview { font-size: 12.5px; color: #475569; background: #f8fafc; padding: 10px 12px; border-radius: 8px; margin-bottom: 14px; flex: 1; }
+    .report-card .btns { display: flex; gap: 8px; }
+    .report-card .btns button { flex: 1; font-size: 12.5px; padding: 7px 10px; }
+
+    @media (max-width: 900px) {
+      .sidebar { position: fixed; z-index: 500; transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+      .topbar .menu-toggle { display: block; }
+      .form-grid { grid-template-columns: 1fr; }
+      .perm-grid { grid-template-columns: 1fr; }
+    }
+    @media print {
+      .sidebar, .topbar, .filter-bar, .pagination-bar, .btn, .actions, .no-print { display: none !important; }
+      .page { padding: 0; } .panel { border: none; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- FIREBASE LOADING -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div style="font-weight:600;">Connecting to Firebase…</div>
+  <div style="font-size:12.5px;opacity:.7;" id="loadingMsg">Initializing cloud database</div>
+</div>
+
+<!-- LOGIN -->
+<div class="login-screen" id="loginScreen" style="display:none;">
+  <div class="login-card">
+    <div class="logo"><i class="fas fa-bus"></i></div>
+    <h2>ETMS Login</h2>
+    <div class="sub">Employee Transport Management System</div>
+    <div class="form-group mb-3">
+      <label>Username</label>
+      <input id="loginUser" class="form-control" placeholder="Enter username" autocomplete="username">
+    </div>
+    <div class="form-group mb-3">
+      <label>Password</label>
+      <input id="loginPass" type="password" class="form-control" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')Auth.login()">
+    </div>
+    <button class="btn btn-primary w-100 mt-2" onclick="Auth.login()"><i class="fas fa-sign-in-alt"></i> Sign In</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app-container" id="appContainer" style="display:none;">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand"><i class="fas fa-bus"></i> ETMS</div>
+    <nav>
+      <div class="section-label" data-section="overview">Overview</div>
+      <a data-page="dashboard" data-section="overview" class="active"><i class="fas fa-chart-pie"></i> Dashboard</a>
+      <a data-page="alerts" data-section="overview"><i class="fas fa-bell"></i> Alerts</a>
+
+      <div class="section-label" data-section="master">Master Data</div>
+      <a data-page="employees" data-section="master"><i class="fas fa-users"></i> Employees</a>
+      <a data-page="routes" data-section="master"><i class="fas fa-route"></i> Routes</a>
+      <a data-page="stops" data-section="master"><i class="fas fa-map-pin"></i> Stops</a>
+      <a data-page="vehicles" data-section="master"><i class="fas fa-truck"></i> Vehicles</a>
+      <a data-page="drivers" data-section="master"><i class="fas fa-id-card"></i> Drivers</a>
+      <a data-page="shifts" data-section="master"><i class="fas fa-clock"></i> Shifts</a>
+
+      <div class="section-label" data-section="operations">Operations</div>
+      <a data-page="assignments" data-section="operations"><i class="fas fa-link"></i> Assignments</a>
+      <a data-page="pickupdrop" data-section="operations"><i class="fas fa-people-arrows"></i> Pickup / Drop</a>
+
+      <div class="section-label" data-section="requests">Requests</div>
+      <a data-page="complaints" data-section="requests"><i class="fas fa-exclamation-circle"></i> Complaints</a>
+      <a data-page="changeRequests" data-section="requests"><i class="fas fa-exchange-alt"></i> Change Requests</a>
+
+      <div class="section-label" data-section="system">System</div>
+      <a data-page="reports" data-section="system"><i class="fas fa-file-alt"></i> Reports</a>
+      <a data-page="importExport" data-section="system"><i class="fas fa-file-import"></i> Import / Export</a>
+      <a data-page="users" data-section="system"><i class="fas fa-user-cog"></i> Users</a>
+      <a data-page="settings" data-section="system"><i class="fas fa-cog"></i> Settings</a>
+    </nav>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="fas fa-bars"></i></button>
+      <div class="search-box">
+        <i class="fas fa-search"></i>
+        <input id="globalSearch" placeholder="Search employees, routes, vehicles..." oninput="App.onGlobalSearch(this.value)">
+      </div>
+      <div class="right">
+        <div class="d-flex align-items-center gap-1">
+          <span class="sync-dot online" id="syncDot"></span>
+          <span class="sync-status" id="syncStatus">Firebase connected</span>
+        </div>
+        <div class="user-chip" onclick="App.openUserMenu()">
+          <div class="avatar" id="userAvatar">A</div><span id="userName">Admin</span>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary" onclick="Auth.logout()" title="Logout"><i class="fas fa-sign-out-alt"></i></button>
+      </div>
+    </header>
+    <main class="page" id="pageContent"></main>
+  </div>
+</div>
+
+<div class="modal-backdrop-custom" id="modalBackdrop"><div class="modal-custom" id="modalContent"></div></div>
+<div id="toastContainer" style="position:fixed;bottom:20px;right:20px;z-index:3000;display:flex;flex-direction:column;gap:8px;"></div>
+
+<!-- ============ FIREBASE SDK (compat build for simplicity) ============ -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+<script>
+/* ============================================================
+   ETMS – Employee Transport Management System (Firebase Edition)
+   ============================================================ */
+
+/* ========== FIREBASE CONFIG ========== */
+const firebaseConfig = {
+  apiKey: "AIzaSyD0hAUKVBPur4Is1p1Xamklzw-n4KhEngY",
+  authDomain: "employee-transport-manag-62818.firebaseapp.com",
+  projectId: "employee-transport-manag-62818",
+  storageBucket: "employee-transport-manag-62818.firebasestorage.app",
+  messagingSenderId: "1041805390334",
+  appId: "1:1041805390334:web:e219ad567285f310ead0af",
+  measurementId: "G-EHGS81T8ED"
+};
+
+/* ========== CONSTANTS ========== */
+const COLLECTIONS = ['employees','routes','stops','vehicles','drivers','shifts','assignments','complaints','changeRequests','users'];
+
+const AVAILABLE_PAGES = [
+  { key:'dashboard', label:'Dashboard', section:'overview' },
+  { key:'alerts', label:'Alerts', section:'overview' },
+  { key:'employees', label:'Employees', section:'master' },
+  { key:'routes', label:'Routes', section:'master' },
+  { key:'stops', label:'Stops', section:'master' },
+  { key:'vehicles', label:'Vehicles', section:'master' },
+  { key:'drivers', label:'Drivers', section:'master' },
+  { key:'shifts', label:'Shifts', section:'master' },
+  { key:'assignments', label:'Assignments', section:'operations' },
+  { key:'pickupdrop', label:'Pickup / Drop', section:'operations' },
+  { key:'complaints', label:'Complaints', section:'requests' },
+  { key:'changeRequests', label:'Change Requests', section:'requests' },
+  { key:'reports', label:'Reports', section:'system' },
+  { key:'importExport', label:'Import / Export', section:'system' },
+  { key:'users', label:'Users', section:'system' },
+  { key:'settings', label:'Settings', section:'system' }
+];
+
+const ROLES = {
+  admin:   { name:'Administrator',   pages:['*'] },
+  manager: { name:'Transport Manager',pages:['dashboard','alerts','employees','routes','stops','vehicles','drivers','shifts','assignments','pickupdrop','complaints','changeRequests','reports','importExport'] },
+  officer: { name:'Transport Officer',pages:['dashboard','alerts','pickupdrop','complaints','reports'] },
+  viewer:  { name:'Viewer',           pages:['dashboard','alerts','reports'] }
+};
+
+/* ========== FIREBASE INIT ========== */
+let fbApp, fbDb, fbReady = false;
+function initFirebase(){
+  try {
+    fbApp = firebase.initializeApp(firebaseConfig);
+    fbDb = firebase.firestore();
+    fbDb.enablePersistence({ synchronizeTabs:true }).catch(err=>{
+      console.warn('Persistence unavailable:', err.code);
+    });
+    fbReady = true;
+    return true;
+  } catch(e){
+    console.error('Firebase init failed:', e);
+    return false;
+  }
+}
+
+/* ========== STATE ========== */
+const State = {
+  db: {},
+  currentPage: 'dashboard',
+  currentRole: 'admin',
+  tables: {},
+  charts: {},
+  globalSearch: '',
+  users: [],
+  currentUser: null,
+  firebaseOnline: false
+};
+
+/* ========== UTIL ========== */
+const Util = {
+  today() { return new Date().toISOString().slice(0,10); },
+  now() { return new Date().toISOString(); },
+  esc(s) { if (s===null||s===undefined) return ''; return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); },
+  debounce(fn,ms=300){ let t; return (...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};},
+  toast(msg,type='info',duration=3500){
+    const colors={info:'#06b6d4',success:'#10b981',warning:'#f59e0b',error:'#ef4444'};
+    const el=document.createElement('div');
+    el.style.cssText=`background:#fff;border-left:4px solid ${colors[type]||colors.info};padding:12px 16px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.15);font-size:13px;min-width:260px;max-width:380px;`;
+    el.innerHTML=`<strong style="color:${colors[type]||colors.info};text-transform:capitalize;">${type}</strong><div style="margin-top:3px;color:#334155;">${Util.esc(msg)}</div>`;
+    document.getElementById('toastContainer').appendChild(el);
+    setTimeout(()=>{el.style.opacity='0';el.style.transition='opacity .3s';setTimeout(()=>el.remove(),300);},duration);
+  },
+  confirm(msg,title='Confirm'){
+    return new Promise(resolve=>{
+      Modal.show({ title, body:`<div style="font-size:14px;">${Util.esc(msg)}</div>`,
+        footer:`<button class="btn btn-secondary" onclick="Modal.close();window.__cResolve(false)">Cancel</button>
+                <button class="btn btn-danger" onclick="Modal.close();window.__cResolve(true)">Confirm</button>`});
+      window.__cResolve=resolve;
+    });
+  },
+  download(filename,content,mime='application/json'){
+    const blob=new Blob([content],{type:mime}); const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+};
+
+/* ========== FIRESTORE DATA SERVICE ========== */
+const FirestoreService = {
+  async loadAll(){
+    const results = {};
+    for(const coll of COLLECTIONS){
+      try {
+        const snap = await fbDb.collection(coll).get();
+        const arr = [];
+        snap.forEach(doc => arr.push({ id: doc.id, ...doc.data() }));
+        results[coll] = arr;
+      } catch(e){
+        console.warn('Load '+coll+' failed:', e.message);
+        results[coll] = [];
+      }
+    }
+    return results;
+  },
+  async add(coll, rec){
+    const id = rec.id || ID.gen(coll);
+    const data = { ...rec, id, createdAt: rec.createdAt||Util.now(), updatedAt: Util.now() };
+    await fbDb.collection(coll).doc(id).set(data);
+    return data;
+  },
+  async update(coll, id, patch){
+    const data = { ...patch, updatedAt: Util.now() };
+    await fbDb.collection(coll).doc(id).set(data, { merge:true });
+    return true;
+  },
+  async remove(coll, id){
+    await fbDb.collection(coll).doc(id).delete();
+    return true;
+  },
+  async replaceAll(coll, records){
+    // Wipe and rewrite — used only for restore
+    const snap = await fbDb.collection(coll).get();
+    const batch = fbDb.batch();
+    snap.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    // Add in chunks of 400 (Firestore limit is 500 per batch)
+    for(let i=0; i<records.length; i+=400){
+      const chunk = records.slice(i, i+400);
+      const b = fbDb.batch();
+      chunk.forEach(r => {
+        const id = r.id || ID.gen(coll);
+        b.set(fbDb.collection(coll).doc(id), { ...r, id });
+      });
+      await b.commit();
+    }
+    return true;
+  }
+};
+
+/* ========== ID GENERATION ========== */
+const ID = {
+  prefix:{employees:'EMP',routes:'RTE',stops:'STP',vehicles:'VEH',drivers:'DRV',shifts:'SHF',assignments:'ASN',complaints:'CMP',changeRequests:'REQ',users:'USR'},
+  gen(c){
+    const p=this.prefix[c]||'REC';
+    const arr=State.db[c]||[];
+    let max=0;
+    arr.forEach(r=>{ const m=String(r.id||'').match(/(\d+)$/); if(m) max=Math.max(max,parseInt(m[1])); });
+    // Also add time-based component to avoid collisions in concurrent writes
+    const t = Date.now().toString().slice(-4);
+    return `${p}-${String(max + 1).padStart(5,'0')}${t}`;
+  }
+};
+
+/* ========== DUPLICATE CHECK ========== */
+const DuplicateCheck = {
+  check(coll, data, excludeId){
+    const list = State.db[coll] || [];
+    if(coll === 'employees'){
+      if(data.employeeCode){
+        const dup = list.find(r => String(r.employeeCode||'') === String(data.employeeCode) && r.id !== excludeId);
+        if(dup) throw new Error(`Employee Code "${data.employeeCode}" already exists (${dup.employeeName})`);
+      }
+      if(data.employeeName && data.pickupStop){
+        const dup = list.find(r => r.employeeName === data.employeeName && r.pickupStop === data.pickupStop && r.id !== excludeId);
+        if(dup) throw new Error(`Employee "${data.employeeName}" at "${data.pickupStop}" already exists (${dup.employeeCode||dup.id})`);
+      }
+    }
+    if(coll === 'vehicles' && data.registrationNumber){
+      const dup = list.find(r => String(r.registrationNumber||'').toUpperCase() === String(data.registrationNumber).toUpperCase() && r.id !== excludeId);
+      if(dup) throw new Error(`Vehicle registration "${data.registrationNumber}" already exists`);
+    }
+    if(coll === 'drivers'){
+      if(data.licenseNumber){
+        const dup = list.find(r => r.licenseNumber === data.licenseNumber && r.id !== excludeId);
+        if(dup) throw new Error(`License number "${data.licenseNumber}" already exists`);
+      }
+      if(data.cnic){
+        const dup = list.find(r => r.cnic === data.cnic && r.id !== excludeId);
+        if(dup) throw new Error(`CNIC "${data.cnic}" already exists`);
+      }
+    }
+    if(coll === 'routes' && data.routeName){
+      const dup = list.find(r => r.routeName === data.routeName && r.shiftName === data.shiftName && r.id !== excludeId);
+      if(dup) throw new Error(`Route "${data.routeName}" for shift "${data.shiftName||''}" already exists`);
+    }
+    if(coll === 'assignments'){
+      if(data.employeeId){
+        const dup = list.find(r => r.employeeId === data.employeeId && r.status === 'Active' && r.id !== excludeId);
+        if(dup) throw new Error(`Employee already has an active assignment (${dup.id})`);
+      }
+      if(data.vehicleId && data.seatNumber){
+        const dup = list.find(r => r.vehicleId === data.vehicleId && String(r.seatNumber) === String(data.seatNumber) && r.status === 'Active' && r.id !== excludeId);
+        if(dup) throw new Error(`Seat ${data.seatNumber} is already taken in this vehicle`);
+      }
+    }
+    if(coll === 'shifts' && data.shiftName){
+      const dup = list.find(r => r.shiftName === data.shiftName && r.id !== excludeId);
+      if(dup) throw new Error(`Shift "${data.shiftName}" already exists`);
+    }
+    if(coll === 'users' && data.username){
+      const dup = State.users.find(r => r.username === data.username && r.id !== excludeId);
+      if(dup) throw new Error(`Username "${data.username}" already exists`);
+    }
+  }
+};
+
+/* ========== DATA SERVICE (unified) ========== */
+const DataService = {
+  getAll(c){ return State.db[c]||[]; },
+  getById(c,id){ return (State.db[c]||[]).find(r=>r.id===id); },
+  async add(c, rec){
+    DuplicateCheck.check(c, rec, null);
+    const saved = await FirestoreService.add(c, rec);
+    if(!State.db[c]) State.db[c]=[];
+    State.db[c].push(saved);
+    return saved;
+  },
+  async update(c, id, patch){
+    DuplicateCheck.check(c, patch, id);
+    await FirestoreService.update(c, id, patch);
+    const idx=(State.db[c]||[]).findIndex(r=>r.id===id);
+    if(idx>=0) State.db[c][idx]={...State.db[c][idx],...patch,updatedAt:Util.now()};
+    return true;
+  },
+  async delete(c, id){
+    await FirestoreService.remove(c, id);
+    const idx=(State.db[c]||[]).findIndex(r=>r.id===id);
+    if(idx>=0) State.db[c].splice(idx,1);
+    return true;
+  },
+  async addUser(rec){
+    // Users stored both in State and Firestore
+    DuplicateCheck.check('users', rec, null);
+    const saved = await FirestoreService.add('users', rec);
+    State.users.push(saved);
+    return saved;
+  },
+  async updateUser(id, patch){
+    DuplicateCheck.check('users', patch, id);
+    await FirestoreService.update('users', id, patch);
+    const u = State.users.find(x=>x.id===id);
+    if(u) Object.assign(u, patch);
+    return true;
+  },
+  async deleteUser(id){
+    await FirestoreService.remove('users', id);
+    State.users = State.users.filter(u => u.id !== id);
+    return true;
+  },
+  async restoreBackup(backup){
+    if(!backup || !backup.data) throw new Error('Invalid backup');
+    for(const c of COLLECTIONS){
+      const arr = c === 'users' ? (backup.users || backup.data[c]) : backup.data[c];
+      if(Array.isArray(arr)){
+        await FirestoreService.replaceAll(c, arr);
+        if(c === 'users') State.users = arr;
+        else State.db[c] = arr;
+      }
+    }
+  },
+  async seedIfEmpty(){
+    // Ensure the initial admin user exists in Firestore
+    const snap = await fbDb.collection('users').limit(1).get();
+    if(snap.empty){
+      const admin = {
+        id: 'USR-000001',
+        username: 'admin',
+        password: 'admin123',
+        name: 'Administrator',
+        role: 'admin',
+        active: true,
+        permissions: ['*']
+      };
+      await fbDb.collection('users').doc(admin.id).set(admin);
+      State.users = [admin];
+    }
+    // Seed demo data only if collections are completely empty
+    const empSnap = await fbDb.collection('employees').limit(1).get();
+    if(empSnap.empty){
+      const seedEmployees = [
+        {id:'EMP-000001',employeeCode:'77',employeeName:'Waqas Khan',pickupStop:'Ali town',city:'Raiwind-Ali Town',routeName:'Raiwind-Ali Town',shiftName:'General Shift',employeeStatus:'Active',transportStatus:'Active',vehicleReg:'LEA-1234'},
+        {id:'EMP-000002',employeeCode:'376',employeeName:'Muhammad Ahmed',pickupStop:'Bahria',city:'Raiwind-Ali Town',routeName:'Raiwind-Ali Town',shiftName:'General Shift',employeeStatus:'Active',transportStatus:'Active',vehicleReg:'LEA-1234'},
+        {id:'EMP-000003',employeeCode:'520',employeeName:'Tahir Mahmood',pickupStop:'Kot Lakhpat',city:'LHE',routeName:'Nishtar LHE',shiftName:'General Shift',employeeStatus:'Active',transportStatus:'Active',vehicleReg:'LEA-5678'}
+      ];
+      const seedRoutes = [
+        {id:'RTE-000001',routeCode:'RT-RAI',routeName:'Raiwind-Ali Town',shiftName:'General Shift',capacity:40,status:'Active'},
+        {id:'RTE-000002',routeCode:'RT-NIS',routeName:'Nishtar LHE',shiftName:'General Shift',capacity:40,status:'Active'}
+      ];
+      const seedShifts = [
+        {id:'SHF-000001',shiftCode:'GS',shiftName:'General Shift',startTime:'08:00',endTime:'17:00',status:'Active'},
+        {id:'SHF-000002',shiftCode:'TS',shiftName:'Three Shift',startTime:'06:00',endTime:'14:00',status:'Active'}
+      ];
+      const seedVehicles = [
+        {id:'VEH-000001',registrationNumber:'LEA-1234',vehicleType:'Bus',make:'Hino',model:'AK',seatingCapacity:40,status:'Active',fuelType:'Diesel',currentOdometer:45000},
+        {id:'VEH-000002',registrationNumber:'LEA-5678',vehicleType:'Bus',make:'Isuzu',model:'BK',seatingCapacity:40,status:'Active',fuelType:'Diesel',currentOdometer:52000}
+      ];
+      const seedDrivers = [
+        {id:'DRV-000001',name:'Akram Ali',contact:'0300-1234567',licenseNumber:'LHR-12345',licenseExpiry:'2027-05-12',status:'Active'},
+        {id:'DRV-000002',name:'Rashid Mehmood',contact:'0301-9876543',licenseNumber:'LHR-67890',licenseExpiry:'2026-11-08',status:'Active'}
+      ];
+      for(const e of seedEmployees) await fbDb.collection('employees').doc(e.id).set(e);
+      for(const r of seedRoutes) await fbDb.collection('routes').doc(r.id).set(r);
+      for(const s of seedShifts) await fbDb.collection('shifts').doc(s.id).set(s);
+      for(const v of seedVehicles) await fbDb.collection('vehicles').doc(v.id).set(v);
+      for(const d of seedDrivers) await fbDb.collection('drivers').doc(d.id).set(d);
+    }
+  }
+};
+
+/* ========== CHANGE REQUEST AUTO-APPLY ========== */
+const ChangeRequestApply = {
+  apply(cr){
+    if(!cr) return;
+    const emp = DataService.getById('employees', cr.employeeId);
+    if(!emp) return;
+    const type = cr.requestType;
+    const updates = {};
+
+    if(type === 'Route Change') updates.routeName = cr.requestedRoute || emp.routeName;
+    else if(type === 'Stop Change') updates.pickupStop = cr.requestedStop || emp.pickupStop;
+    else if(type === 'Shift Change') updates.shiftName = cr.requestedShift || emp.shiftName;
+    else if(type === 'Vehicle Change') updates.vehicleReg = cr.requestedVehicle || emp.vehicleReg;
+    else if(type === 'Driver Change') updates.driverName = cr.requestedDriver || emp.driverName;
+    else if(type === 'Route & Timing Change' || type === 'Route & Timing'){
+      if(cr.requestedRoute) updates.routeName = cr.requestedRoute;
+      if(cr.requestedShift) updates.shiftName = cr.requestedShift;
+      if(cr.requestedPickupTime) updates.pickupTime = cr.requestedPickupTime;
+      if(cr.requestedDropTime) updates.dropTime = cr.requestedDropTime;
+    } else if(type === 'New Transport'){
+      updates.transportStatus = 'Active';
+      if(cr.requestedRoute) updates.routeName = cr.requestedRoute;
+      if(cr.requestedStop) updates.pickupStop = cr.requestedStop;
+    } else if(type === 'Remove Transport'){
+      updates.transportStatus = 'None';
+    }
+
+    if(Object.keys(updates).length > 0){
+      // Update local state
+      const idx = (State.db.employees||[]).findIndex(e => e.id === emp.id);
+      if(idx >= 0) Object.assign(State.db.employees[idx], updates, { updatedAt: Util.now() });
+      // Update Firestore
+      fbDb.collection('employees').doc(emp.id).set(updates, { merge:true }).catch(e=>console.warn('CR apply emp:', e));
+      // Update active assignments
+      (State.db.assignments||[]).forEach(a => {
+        if(a.employeeId === emp.id && a.status === 'Active'){
+          Object.assign(a, updates, { updatedAt: Util.now() });
+          fbDb.collection('assignments').doc(a.id).set(updates, { merge:true }).catch(()=>{});
+        }
+      });
+    }
+  }
+};
+
+/* ========== AUTH ========== */
+const Auth = {
+  login(){
+    const u=document.getElementById('loginUser').value.trim();
+    const p=document.getElementById('loginPass').value.trim();
+    if(!u||!p){ Util.toast('Please enter username and password','warning'); return; }
+    const user=State.users.find(x=>x.username===u && x.password===p && x.active);
+    if(!user){ Util.toast('Invalid username or password','error'); return; }
+    State.currentUser = user;
+    State.currentRole = user.role;
+    localStorage.setItem('etms_user', JSON.stringify({ username:u }));
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('appContainer').style.display='flex';
+    document.getElementById('userName').textContent = user.name;
+    document.getElementById('userAvatar').textContent = user.name.charAt(0).toUpperCase();
+    UI.applyPermissions();
+    UI.go('dashboard');
+  },
+  logout(){
+    State.currentUser=null;
+    document.getElementById('loginScreen').style.display='flex';
+    document.getElementById('appContainer').style.display='none';
+    document.getElementById('loginUser').value='';
+    document.getElementById('loginPass').value='';
+    localStorage.removeItem('etms_user');
+  }
+};
+
+/* ========== UI CORE ========== */
+const UI = {
+  canAccess(page){
+    const u = State.currentUser;
+    if(!u) return false;
+    if(u.role === 'admin') return true;
+    if(u.permissions && u.permissions.length > 0){
+      if(u.permissions.includes('*')) return true;
+      return u.permissions.includes(page);
+    }
+    return ROLES[u.role]?.pages.includes('*') || ROLES[u.role]?.pages.includes(page);
+  },
+  applyPermissions(){
+    document.querySelectorAll('.sidebar nav a').forEach(a=>{
+      const allowed = this.canAccess(a.dataset.page);
+      a.classList.toggle('hidden', !allowed);
+    });
+    document.querySelectorAll('.sidebar .section-label').forEach(lbl=>{
+      const section = lbl.dataset.section;
+      const anyVisible = Array.from(document.querySelectorAll(`.sidebar nav a[data-section="${section}"]`))
+        .some(a => !a.classList.contains('hidden'));
+      lbl.classList.toggle('hidden', !anyVisible);
+    });
+  },
+  go(page){
+    if(!this.canAccess(page)){
+      Util.toast('Access denied for this role','warning'); return;
+    }
+    State.currentPage=page;
+    document.querySelectorAll('.sidebar nav a').forEach(a=>a.classList.toggle('active',a.dataset.page===page));
+    document.getElementById('sidebar').classList.remove('open');
+    Render.page(page);
+    document.getElementById('pageContent').scrollTop=0;
+  },
+  setSyncState(online){
+    const dot = document.getElementById('syncDot');
+    const txt = document.getElementById('syncStatus');
+    if(online){
+      dot.className = 'sync-dot online';
+      txt.textContent = 'Firebase connected';
+    } else {
+      dot.className = 'sync-dot offline';
+      txt.textContent = 'Firebase offline';
+    }
+  }
+};
+
+/* ========== MODAL ========== */
+const Modal = {
+  show({title,body,footer,size}){
+    const bd=document.getElementById('modalBackdrop'), ct=document.getElementById('modalContent');
+    ct.style.maxWidth = size==='lg'?'900px': size==='xl'?'1100px':'720px';
+    ct.innerHTML=`
+      <div class="modal-head"><h4>${Util.esc(title)}</h4>
+        <button class="btn-icon" onclick="Modal.close()"><i class="fas fa-times"></i></button></div>
+      <div class="modal-body">${body}</div>
+      ${footer?`<div class="modal-foot">${footer}</div>`:''}
+    `;
+    bd.classList.add('show');
+  },
+  close(){ document.getElementById('modalBackdrop').classList.remove('show'); }
+};
+
+/* ========== ALERTS ========== */
+const Alerts = {
+  compute(){
+    const list=[], today=new Date(), in30=new Date(today.getTime()+30*864e5);
+    (State.db.vehicles||[]).forEach(v=>{
+      ['fitnessExpiry','insuranceExpiry','permitExpiry','taxExpiry'].forEach(f=>{
+        if(v[f]){ const d=new Date(v[f]);
+          if(d<today) list.push({type:'danger',msg:`${v.registrationNumber||v.id}: ${f} EXPIRED`,module:'vehicles'});
+          else if(d<in30) list.push({type:'warn',msg:`${v.registrationNumber||v.id}: ${f} expiring soon`,module:'vehicles'});
+        }});
+    });
+    (State.db.drivers||[]).forEach(d=>{
+      if(d.licenseExpiry){ const dt=new Date(d.licenseExpiry);
+        if(dt<today) list.push({type:'danger',msg:`Driver ${d.name}: license EXPIRED`,module:'drivers'});
+        else if(dt<in30) list.push({type:'warn',msg:`Driver ${d.name}: license expiring`,module:'drivers'});
+      }});
+    (State.db.routes||[]).forEach(r=>{
+      const count=(State.db.assignments||[]).filter(a=>a.routeId===r.id&&a.status==='Active').length;
+      if(r.capacity&&count>r.capacity) list.push({type:'danger',msg:`Route ${r.routeName}: OVER CAPACITY`,module:'routes'});
+    });
+    const noT=(State.db.employees||[]).filter(e=>e.employeeStatus==='Active'&&(!e.transportStatus||e.transportStatus==='None')).length;
+    if(noT) list.push({type:'info',msg:`${noT} active employees without transport`,module:'employees'});
+    const pendCR=(State.db.changeRequests||[]).filter(c=>c.status==='Pending').length;
+    if(pendCR) list.push({type:'info',msg:`${pendCR} pending change requests`,module:'changeRequests'});
+    return list;
+  }
+};
+
+/* ========== REPORTS ========== */
+const Reports = {
+  buildShiftWiseReport(){
+    const employees = State.db.employees || [];
+    const shiftsByName = {};
+    employees.forEach(e => {
+      const sn = e.shiftName || 'Unassigned';
+      if(!shiftsByName[sn]) shiftsByName[sn] = [];
+      shiftsByName[sn].push(e);
+    });
+    (State.db.shifts||[]).forEach(s => {
+      if(!shiftsByName[s.shiftName]) shiftsByName[s.shiftName] = [];
+    });
+    const rows = [];
+    Object.keys(shiftsByName).sort().forEach(sn => {
+      shiftsByName[sn].forEach(e => {
+        rows.push({
+          'Shift': sn,
+          'Employee Code': e.employeeCode || '',
+          'Employee Name': e.employeeName || '',
+          'Department': e.department || '',
+          'Route': e.routeName || '',
+          'Pickup Stop': e.pickupStop || '',
+          'Vehicle': e.vehicleReg || '',
+          'Status': e.employeeStatus || 'Active'
+        });
+      });
+    });
+    const summary = Object.keys(shiftsByName).sort().map(sn => ({
+      'Shift': sn,
+      'Employee Count': shiftsByName[sn].length
+    }));
+    return { title: 'Shift-wise Report', rows, summary, summaryTitle: 'Shift Summary' };
+  },
+
+  buildStopWiseReport(){
+    const employees = State.db.employees || [];
+    const stopsByName = {};
+    employees.forEach(e => {
+      const sn = e.pickupStop || 'Unassigned';
+      if(!stopsByName[sn]) stopsByName[sn] = [];
+      stopsByName[sn].push(e);
+    });
+    const rows = [];
+    Object.keys(stopsByName).sort().forEach(sn => {
+      stopsByName[sn].forEach(e => {
+        rows.push({
+          'Pickup Stop': sn,
+          'Employee Code': e.employeeCode || '',
+          'Employee Name': e.employeeName || '',
+          'Department': e.department || '',
+          'Route': e.routeName || '',
+          'Shift': e.shiftName || '',
+          'City': e.city || '',
+          'Status': e.employeeStatus || 'Active'
+        });
+      });
+    });
+    const summary = Object.keys(stopsByName).sort().map(sn => ({
+      'Pickup Stop': sn,
+      'Employee Count': stopsByName[sn].length
+    }));
+    return { title: 'Stop-wise Report', rows, summary, summaryTitle: 'Stop Summary' };
+  },
+
+  buildVehicleWiseReport(){
+    const employees = State.db.employees || [];
+    const vehicles = State.db.vehicles || [];
+    const assignments = State.db.assignments || [];
+    const vehMap = {};
+    vehicles.forEach(v => {
+      vehMap[v.registrationNumber || v.id] = { vehicle: v, employees: [] };
+    });
+    assignments.forEach(a => {
+      if(a.status === 'Active' && a.vehicleReg){
+        if(!vehMap[a.vehicleReg]) vehMap[a.vehicleReg] = { vehicle: null, employees: [] };
+        const emp = employees.find(e => e.id === a.employeeId);
+        if(emp && !vehMap[a.vehicleReg].employees.find(x=>x.id===emp.id)){
+          vehMap[a.vehicleReg].employees.push(emp);
+        }
+      }
+    });
+    employees.forEach(e => {
+      if(e.vehicleReg){
+        if(!vehMap[e.vehicleReg]) vehMap[e.vehicleReg] = { vehicle: null, employees: [] };
+        if(!vehMap[e.vehicleReg].employees.find(x=>x.id===e.id)){
+          vehMap[e.vehicleReg].employees.push(e);
+        }
+      }
+    });
+    const noVeh = employees.filter(e => !e.vehicleReg && !assignments.some(a=>a.employeeId===e.id&&a.status==='Active'&&a.vehicleReg));
+    if(noVeh.length) vehMap['Unassigned'] = { vehicle: null, employees: noVeh };
+
+    const rows = [];
+    Object.keys(vehMap).sort().forEach(reg => {
+      const { vehicle, employees: emps } = vehMap[reg];
+      const capacity = vehicle ? (vehicle.seatingCapacity||0) : '';
+      const model = vehicle ? `${vehicle.make||''} ${vehicle.model||''}`.trim() : '';
+      emps.forEach(e => {
+        rows.push({
+          'Vehicle': reg,
+          'Type': vehicle ? (vehicle.vehicleType||'') : '',
+          'Model': model,
+          'Capacity': capacity,
+          'Employee Code': e.employeeCode || '',
+          'Employee Name': e.employeeName || '',
+          'Department': e.department || '',
+          'Route': e.routeName || '',
+          'Shift': e.shiftName || '',
+          'Pickup Stop': e.pickupStop || '',
+          'Status': e.employeeStatus || 'Active'
+        });
+      });
+    });
+
+    const summary = Object.keys(vehMap).sort().map(reg => {
+      const { vehicle, employees: emps } = vehMap[reg];
+      const capacity = vehicle ? (vehicle.seatingCapacity||0) : 0;
+      const used = emps.length;
+      return {
+        'Vehicle': reg,
+        'Type': vehicle ? (vehicle.vehicleType||'') : '',
+        'Capacity': capacity,
+        'Assigned': used,
+        'Available': Math.max(0, capacity - used),
+        'Utilization %': capacity ? Math.round(used/capacity*100)+'%' : (used>0?'N/A':'')
+      };
+    });
+
+    return { title: 'Vehicle-wise Report', rows, summary, summaryTitle: 'Vehicle Summary' };
+  },
+
+  buildAllReportsBundle(){
+    return [ this.buildShiftWiseReport(), this.buildStopWiseReport(), this.buildVehicleWiseReport() ];
+  },
+
+  exportExcel(report){
+    if(!report.rows.length){ Util.toast('No data to export for '+report.title,'warning'); return; }
+    const wb = XLSX.utils.book_new();
+    if(report.summary && report.summary.length){
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(report.summary), 'Summary');
+    }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(report.rows), 'Details');
+    const fname = report.title.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+Util.today()+'.xlsx';
+    XLSX.writeFile(wb, fname);
+    Util.toast('Excel downloaded: '+report.title, 'success');
+  },
+
+  exportPDF(report){
+    if(!report.rows.length){ Util.toast('No data to export for '+report.title,'warning'); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+
+    doc.setFillColor(15,43,75);
+    doc.rect(0, 0, pageW, 50, 'F');
+    doc.setTextColor(255,255,255);
+    doc.setFontSize(16); doc.setFont('helvetica','bold');
+    doc.text('ETMS — '+report.title, 40, 30);
+    doc.setFontSize(10); doc.setFont('helvetica','normal');
+    doc.text('Generated: '+new Date().toLocaleString(), pageW-40, 30, { align:'right' });
+
+    let startY = 70;
+    if(report.summary && report.summary.length){
+      doc.setTextColor(15,43,75);
+      doc.setFontSize(12); doc.setFont('helvetica','bold');
+      doc.text(report.summaryTitle || 'Summary', 40, startY);
+      startY += 10;
+      const sumCols = Object.keys(report.summary[0]);
+      doc.autoTable({
+        startY,
+        head: [sumCols],
+        body: report.summary.map(r => sumCols.map(c => r[c])),
+        theme: 'grid',
+        headStyles: { fillColor: [37,99,235], textColor: 255, fontStyle: 'bold' },
+        styles: { fontSize: 9, cellPadding: 4 },
+        margin: { left: 40, right: 40 }
+      });
+      startY = doc.lastAutoTable.finalY + 20;
+    }
+    doc.setTextColor(15,43,75);
+    doc.setFontSize(12); doc.setFont('helvetica','bold');
+    if(startY > pageH - 60){ doc.addPage(); startY = 40; }
+    doc.text('Details ('+report.rows.length+' records)', 40, startY);
+    startY += 10;
+    const cols = Object.keys(report.rows[0]);
+    doc.autoTable({
+      startY,
+      head: [cols],
+      body: report.rows.map(r => cols.map(c => r[c])),
+      theme: 'striped',
+      headStyles: { fillColor: [15,43,75], textColor: 255, fontStyle: 'bold' },
+      styles: { fontSize: 8, cellPadding: 3 },
+      alternateRowStyles: { fillColor: [241,245,249] },
+      margin: { left: 40, right: 40 }
+    });
+    const pageCount = doc.internal.getNumberOfPages();
+    for(let i=1; i<=pageCount; i++){
+      doc.setPage(i);
+      doc.setFontSize(8); doc.setTextColor(120);
+      doc.text('Page '+i+' of '+pageCount, pageW-40, pageH-15, {align:'right'});
+      doc.text('ETMS • Transport Report', 40, pageH-15);
+    }
+    const fname = report.title.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+Util.today()+'.pdf';
+    doc.save(fname);
+    Util.toast('PDF downloaded: '+report.title, 'success');
+  },
+
+  exportAllExcel(){
+    const reports = this.buildAllReportsBundle();
+    const wb = XLSX.utils.book_new();
+    reports.forEach(rep=>{
+      if(!rep.rows.length) return;
+      if(rep.summary && rep.summary.length){
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rep.summary), (rep.title.split(' ')[0]+' Sum').substring(0,31));
+      }
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rep.rows), rep.title.split(' ')[0].substring(0,31));
+    });
+    if(wb.SheetNames.length === 0){ Util.toast('No data to export','warning'); return; }
+    XLSX.writeFile(wb, 'transport-reports-'+Util.today()+'.xlsx');
+    Util.toast('All reports downloaded (Excel)','success');
+  },
+
+  exportAllPDF(){
+    const reports = this.buildAllReportsBundle();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    let first = true;
+    reports.forEach(rep=>{
+      if(!rep.rows.length) return;
+      if(!first){ doc.addPage(); }
+      first = false;
+      doc.setFillColor(15,43,75);
+      doc.rect(0, 0, pageW, 50, 'F');
+      doc.setTextColor(255,255,255);
+      doc.setFontSize(16); doc.setFont('helvetica','bold');
+      doc.text('ETMS — '+rep.title, 40, 30);
+      doc.setFontSize(10); doc.setFont('helvetica','normal');
+      doc.text('Generated: '+new Date().toLocaleString(), pageW-40, 30, { align:'right' });
+      let startY = 70;
+      if(rep.summary && rep.summary.length){
+        doc.setTextColor(15,43,75);
+        doc.setFontSize(12); doc.setFont('helvetica','bold');
+        doc.text(rep.summaryTitle || 'Summary', 40, startY);
+        startY += 10;
+        const cols = Object.keys(rep.summary[0]);
+        doc.autoTable({ startY, head:[cols], body: rep.summary.map(r=>cols.map(c=>r[c])),
+          theme:'grid', headStyles:{fillColor:[37,99,235],textColor:255,fontStyle:'bold'},
+          styles:{fontSize:9,cellPadding:4}, margin:{left:40,right:40} });
+        startY = doc.lastAutoTable.finalY + 20;
+      }
+      doc.setTextColor(15,43,75);
+      doc.setFontSize(12); doc.setFont('helvetica','bold');
+      if(startY > pageH - 60){ doc.addPage(); startY = 40; }
+      doc.text('Details ('+rep.rows.length+' records)', 40, startY);
+      startY += 10;
+      const cols = Object.keys(rep.rows[0]);
+      doc.autoTable({ startY, head:[cols], body: rep.rows.map(r=>cols.map(c=>r[c])),
+        theme:'striped', headStyles:{fillColor:[15,43,75],textColor:255,fontStyle:'bold'},
+        styles:{fontSize:8,cellPadding:3}, alternateRowStyles:{fillColor:[241,245,249]},
+        margin:{left:40,right:40} });
+    });
+    const pageCount = doc.internal.getNumberOfPages();
+    for(let i=1; i<=pageCount; i++){
+      doc.setPage(i);
+      doc.setFontSize(8); doc.setTextColor(120);
+      doc.text('Page '+i+' of '+pageCount, pageW-40, pageH-15, {align:'right'});
+      doc.text('ETMS • Transport Reports Bundle', 40, pageH-15);
+    }
+    doc.save('transport-reports-'+Util.today()+'.pdf');
+    Util.toast('All reports downloaded (PDF)','success');
+  }
+};
+
+/* ========== RENDER ========== */
+const Render = {
+  page(p){ const fn=this['render_'+p]; if(fn) fn.call(this); else document.getElementById('pageContent').innerHTML=`<div class="alert alert-warning">Page "${Util.esc(p)}" not available.</div>`; },
+
+  render_dashboard(){
+    const emp=State.db.employees||[], veh=State.db.vehicles||[], drv=State.db.drivers||[],
+          rts=State.db.routes||[], asn=State.db.assignments||[];
+
+    const totalEmp=emp.length;
+    const usingTransport=emp.filter(e=>asn.some(a=>a.employeeId===e.id&&a.status==='Active')).length;
+    const withoutTransport=emp.filter(e=>!asn.some(a=>a.employeeId===e.id&&a.status==='Active')).length;
+    const activeEmp=emp.filter(e=>e.employeeStatus!=='Inactive').length;
+    const inactiveEmp=emp.filter(e=>e.employeeStatus==='Inactive').length;
+    const activeVeh=veh.filter(v=>v.status==='Active').length;
+    const activeDrv=drv.filter(d=>d.status==='Active').length;
+    const totalSeats=veh.reduce((s,v)=>s+(parseInt(v.seatingCapacity)||0),0);
+    const occupied=asn.filter(a=>a.status==='Active').length;
+    const available=Math.max(0,totalSeats-occupied);
+    const util=totalSeats?Math.round(occupied/totalSeats*100):0;
+    const openC=(State.db.complaints||[]).filter(c=>c.status==='Open').length;
+    const pendCR=(State.db.changeRequests||[]).filter(c=>c.status==='Pending').length;
+
+    const card=(label,value,icon,cls)=>`
+      <div class="col-xl-3 col-md-6">
+        <div class="stat-card">
+          <div><div class="label">${label}</div><div class="value">${value}</div></div>
+          <div class="icon ${cls}"><i class="fas ${icon}"></i></div>
+        </div>
+      </div>`;
+
+    document.getElementById('pageContent').innerHTML=`
+      <div class="page-header">
+        <div><h2>Transport Dashboard</h2><div class="sub">Live data from Firebase</div></div>
+      </div>
+      <div class="row g-3 mb-3">
+        ${card('Total Employees',totalEmp,'fa-users','icon-blue')}
+        ${card('Using Transport',usingTransport,'fa-bus','icon-green')}
+        ${card('Without Transport',withoutTransport,'fa-user-slash','icon-orange')}
+        ${card('Active Employees',activeEmp,'fa-user-check','icon-cyan')}
+        ${card('Inactive Employees',inactiveEmp,'fa-user-times','icon-gray')}
+        ${card('Total Routes',rts.length,'fa-route','icon-purple')}
+        ${card('Total Vehicles',veh.length,'fa-truck','icon-blue')}
+        ${card('Active Vehicles',activeVeh,'fa-truck-moving','icon-green')}
+        ${card('Total Drivers',drv.length,'fa-id-card','icon-purple')}
+        ${card('Active Drivers',activeDrv,'fa-user-tie','icon-cyan')}
+        ${card('Total Seats',totalSeats,'fa-chair','icon-blue')}
+        ${card('Occupied Seats',occupied,'fa-user-friends','icon-green')}
+        ${card('Available Seats',available,'fa-chair','icon-gray')}
+        ${card('Seat Utilization',util+'%','fa-percentage','icon-orange')}
+        ${card('Open Complaints',openC,'fa-exclamation-circle','icon-red')}
+        ${card('Pending Change Req.',pendCR,'fa-exchange-alt','icon-orange')}
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-lg-6"><div class="panel"><div class="panel-header"><h5>Employees by Route</h5></div><div class="panel-body"><div class="chart-box"><canvas id="chartEmpByRoute"></canvas></div></div></div></div>
+        <div class="col-lg-6"><div class="panel"><div class="panel-header"><h5>Employees by Shift</h5></div><div class="panel-body"><div class="chart-box"><canvas id="chartEmpByShift"></canvas></div></div></div></div>
+        <div class="col-lg-6"><div class="panel"><div class="panel-header"><h5>Route Occupancy</h5></div><div class="panel-body"><div class="chart-box"><canvas id="chartRouteOcc"></canvas></div></div></div></div>
+        <div class="col-lg-6"><div class="panel"><div class="panel-header"><h5>Vehicle Utilization</h5></div><div class="panel-body"><div class="chart-box"><canvas id="chartVehUtil"></canvas></div></div></div></div>
+      </div>
+    `;
+    setTimeout(()=>Charts.renderDashboard(),60);
+  },
+
+  render_alerts(){
+    const alerts=Alerts.compute();
+    document.getElementById('pageContent').innerHTML=`
+      <div class="page-header">
+        <div><h2>Alerts Center</h2><div class="sub">${alerts.length} active alerts</div></div>
+      </div>
+      <div class="panel"><div class="panel-body">
+        ${alerts.length===0?'<div class="alert alert-success">✅ No alerts. All systems normal.</div>':
+          alerts.map(a=>`<div class="alert-item ${a.type}">
+            <strong>${a.type==='danger'?'🔴':a.type==='warn'?'🟡':'ℹ️'}</strong>
+            ${Util.esc(a.msg)}
+            <a href="javascript:void(0)" onclick="UI.go('${a.module}')" style="float:right;font-size:11.5px;">Open →</a>
+          </div>`).join('')}
+      </div></div>
+    `;
+  },
+
+  genericTable(coll,columns,extraActions){
+    const s=State.tables[coll]||(State.tables[coll]={page:1,perPage:25,sort:'',dir:'asc',search:''});
+    let recs=DataService.getAll(coll);
+    if(s.search){ const t=s.search.toLowerCase(); recs=recs.filter(r=>Object.values(r).some(v=>v&&String(v).toLowerCase().includes(t))); }
+    if(s.sort){ recs=[...recs].sort((a,b)=>{const A=a[s.sort],B=b[s.sort];if(A===B)return 0;return (A>B?1:-1)*(s.dir==='asc'?1:-1);}); }
+    const total=recs.length, start=(s.page-1)*s.perPage, paged=recs.slice(start,start+s.perPage);
+    const totalPages=Math.max(1,Math.ceil(total/s.perPage));
+
+    const thead=columns.map(c=>`<th onclick="Render.sortTable('${coll}','${c.key}')">${Util.esc(c.label)} ${s.sort===c.key?(s.dir==='asc'?'▲':'▼'):''}</th>`).join('')+'<th style="width:130px;">Actions</th>';
+    const tbody=paged.map(r=>{
+      const cells=columns.map(c=>`<td>${c.render?c.render(r):Util.esc(r[c.key]??'')}</td>`).join('');
+      return `<tr>${cells}<td><div class="actions">
+        <button class="btn-icon" title="View" onclick="App.viewRecord('${coll}','${r.id}')"><i class="fas fa-eye"></i></button>
+        <button class="btn-icon" title="Edit" onclick="App.editRecord('${coll}','${r.id}')"><i class="fas fa-edit"></i></button>
+        <button class="btn-icon danger" title="Delete" onclick="App.deleteRecord('${coll}','${r.id}')"><i class="fas fa-trash"></i></button>
+        ${extraActions?extraActions(r):''}
+      </div></td></tr>`;
+    }).join('')||`<tr><td colspan="${columns.length+1}" style="text-align:center;color:#94a3b8;padding:30px;">No records</td></tr>`;
+
+    return `
+      <div class="filter-bar">
+        <div class="form-group" style="flex:1;min-width:220px;">
+          <label>Search</label>
+          <input value="${Util.esc(s.search)}" placeholder="Type to search..." oninput="Render.searchTable('${coll}',this.value)">
+        </div>
+        <div class="form-group"><label>Per Page</label>
+          <select onchange="Render.perPageTable('${coll}',this.value)">${[25,50,100,250].map(n=>`<option ${n===s.perPage?'selected':''}>${n}</option>`).join('')}</select>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm" onclick="Render.clearTableFilters('${coll}')"><i class="fas fa-times"></i> Clear</button>
+        <button class="btn btn-outline-success btn-sm" onclick="App.exportCollection('${coll}')"><i class="fas fa-file-excel"></i> Export</button>
+        <button class="btn btn-outline-dark btn-sm" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+      </div>
+      <div class="table-wrap"><table class="data-table"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>
+      <div class="pagination-bar">
+        <div>Showing ${total===0?0:start+1}–${Math.min(start+s.perPage,total)} of ${total}</div>
+        <div class="pages">
+          <button onclick="Render.gotoPage('${coll}',${s.page-1})" ${s.page<=1?'disabled':''}><i class="fas fa-chevron-left"></i></button>
+          ${Array.from({length:Math.min(7,totalPages)},(_,i)=>{const p=Math.max(1,Math.min(totalPages-6,s.page-3))+i;if(p>totalPages)return '';return `<button class="${p===s.page?'active':''}" onclick="Render.gotoPage('${coll}',${p})">${p}</button>`;}).join('')}
+          <button onclick="Render.gotoPage('${coll}',${s.page+1})" ${s.page>=totalPages?'disabled':''}><i class="fas fa-chevron-right"></i></button>
+        </div>
+      </div>`;
+  },
+  searchTable(c,v){ const s=State.tables[c]; s.search=v; s.page=1; clearTimeout(this._d); this._d=setTimeout(()=>Render.page(State.currentPage),250); },
+  sortTable(c,k){ const s=State.tables[c]; if(s.sort===k)s.dir=s.dir==='asc'?'desc':'asc';else{s.sort=k;s.dir='asc';} Render.page(State.currentPage); },
+  perPageTable(c,v){ const s=State.tables[c]; s.perPage=parseInt(v); s.page=1; Render.page(State.currentPage); },
+  gotoPage(c,p){ const s=State.tables[c]; s.page=Math.max(1,p); Render.page(State.currentPage); },
+  clearTableFilters(c){ State.tables[c]={page:1,perPage:25,sort:'',dir:'asc',search:''}; Render.page(State.currentPage); },
+
+  render_employees(){
+    const cols=[
+      {key:'id',label:'ID'},{key:'employeeCode',label:'Emp Code'},{key:'employeeName',label:'Name'},
+      {key:'department',label:'Department'},{key:'routeName',label:'Route'},{key:'pickupStop',label:'Pickup'},
+      {key:'shiftName',label:'Shift'},{key:'city',label:'City'},
+      {key:'employeeStatus',label:'Status',render:r=>`<span class="badge-status ${r.employeeStatus==='Inactive'?'badge-inactive':'badge-active'}">${Util.esc(r.employeeStatus||'Active')}</span>`}
+    ];
+    document.getElementById('pageContent').innerHTML=`
+      <div class="page-header">
+        <div><h2>Employees</h2><div class="sub">${(State.db.employees||[]).length} total records</div></div>
+        <div>
+          <button class="btn btn-primary btn-sm" onclick="App.addRecord('employees')"><i class="fas fa-plus"></i> Add Employee</button>
+          <button class="btn btn-outline-secondary btn-sm" onclick="App.importWizard()"><i class="fas fa-file-import"></i> Import</button>
+        </div>
+      </div>
+      <div class="panel">${this.genericTable('employees',cols)}</div>`;
+  },
+
+  render_routes(){
+    const cols=[{key:'id',label:'ID'},{key:'routeCode',label:'Code'},{key:'routeName',label:'Route Name'},
+      {key:'shiftName',label:'Shift'},{key:'capacity',label:'Capacity'},
+      {key:'status',label:'Status',render:r=>`<span class="badge-status ${r.status==='Inactive'?'badge-inactive':'badge-active'}">${Util.esc(r.status||'Active')}</span>`}];
+    document.getElementById('pageContent').innerHTML=`
+      <div class="page-header"><div><h2>Routes</h2><div class="sub">${(State.db.routes||[]).length} routes</div></div>
+      <button class="btn btn-primary btn-sm" onclick="App.addRecord('routes')"><i class="fas fa-plus"></i> Add Route</button></div>
+      <div class="panel">${this.genericTable('routes',cols)}</div>`;
+  },
+  render_stops(){
+    const cols=[{key:'id',label:'ID'},{key:'stopName',label:'Stop Name'},{key:'routeName',label:'Route'},
+      {key:'area',label:'Area'},{key:'sequence',label:'Seq'},{key:'pickupTime',label:'Pickup'},{key:'status',label:'Status'}];
+    document.getElementById('pageContent').innerHTML=`
+      <div class="page-header"><div><h2>Stops</h2><div class="sub">${(State.db.stops||[]).length} stops</div></div>
+      <button class="btn btn-primary btn-sm" onclick="App.addRecord('stops')"><i class="fas fa-plus"></i> Add Stop</button></div>
+      <div class="panel">${this.genericTable('stops',cols)}</div>`;
+  },
+  render_vehicles(){
+    const cols=[{key:'id',label:'ID'},{key:'registrationNumber',label:'Registration'},{key:'vehicleType',label:'Type'},
+      {key:'make',label:'Make'},{key:'model',label:'Model'},{key:'seatingCapacity',label:'Capacity'},
+      {key:'fuelType',label:'Fuel'},{key:'currentOdometer',label:'Odometer'},
+      {key:'status',label:'Status',render:r=>{const c=r.status==='Active'?'badge-active':r.status==='Under Maintenance'?'badge-warn':r.status==='Inactive'?'badge-inactive':'badge-gray';return `<span class="badge-status ${c}">${Util.esc(r.status||'Active')}</span>`;}}];
+    document.getElementById('pageContent').innerHTML=`
+      <div class="page-header"><div><h2>Vehicles</h2><div class="sub">${(State.db.vehicles||[]).length} vehicles</div></div>
+      <button class="btn btn-primary btn-sm" onclick="App.addRecord('vehicles')"><i class="fas fa-plus"></i> Add Vehicle</button></div>
+      <div class="panel">${this.genericTable('vehicles',cols)}</div>`;
+  },
+  render_drivers(){
+    const cols=[{key:'id',label:'ID'},{key:'name',label:'Name'},{key:'cnic',label:'CNIC'},{key:'contact',label:'Contact'},
+      {key:'licenseNumber',label:'License #'},{key:'licenseExpiry',label:'License Expiry',render:r=>{if(!r.licenseExpiry)return '';const d=new Date(r.licenseExpiry),t=new Date();const c=d<t?'badge-inactive':(d-t<30*864e5?'badge-warn':'badge-active');return `<span class="badge-status ${c}">${r.licenseExpiry}</span>`;}},{key:'status',label:'Status'}];
+    document.getElementById('pageContent').innerHTML=`
+      <div class="page-header"><div><h2>Drivers</h2><div class="sub">${(State.db.drivers||[]).length} drivers</div></div>
+      <button class="btn btn-primary btn-sm" onclick="App.addRecord('drivers')"><i class="fas fa-plus"></i> Add Driver</button></div>
+      <div class="panel">${this.genericTable('drivers',cols)}</div>`;
+  },
+  render_shifts(){
+    const cols=[{key:'id',label:'ID'},{key:'shiftCode',label:'Code'},{key:'shiftName',label:'Shift Name'},
+      {key:'startTime',label:'Start'},{key:'endTime',label:'End'},{key:'graceTime',label:'Grace (min)'},{key:'status',label:'Status'}];
+    document.getElementById('pageContent').innerHTML=`
+      <div class="page-header"><div><h2>Shifts</h2><div class="sub">${(State.db.shifts||[]).length} shifts</div></div>
+      <button class="btn btn-primary btn-sm" onclick="App.addRecord('shifts')"><i class="fas fa-plus"></i> Add Shift</button></div>
+      <div class="panel">${this.genericTable('shifts',cols)}</div>`;
+  },
+  render_assignments(){
+    const cols=[{key:'id',label:'ID'},{key:'employeeName',label:'Employee'},{key:'routeName',label:'Route'},
+      {key:'pickupStop',label:'Pickup'},{key:'vehicleReg',label:'Vehicle'},{key:'driverName',label:'Driver'},
+      {key:'shiftName',label:'Shift'},{key:'seatNumber',label:'Seat'},{key:'status',label:'Status'}];
+    document.getElementById('pageContent').innerHTML=`
+      <div class="page-header"><div><h2>Transport Assignments</h2><div class="sub">${(State.db.assignments||[]).length} assignments</div></div>
+      <button class="btn btn-primary btn-sm" onclick="App.addRecord('assignments')"><i class="fas fa-plus"></i> New Assignment</button></div>
+      <div class="panel">${this.genericTable('assignments',cols)}</div>`;
+  },
+  render_pickupdrop(){
+    const routes=State.db.routes||[];
+    document.getElementById('pageContent').innerHTML=`
+      <div class="page-header"><div><h2>Pickup / Drop Lists</h2><div class="sub">Route-based passenger lists</div></div>
+      <button class="btn btn-outline-dark btn-sm" onclick="window.print()"><i class="fas fa-print"></i> Print</button></div>
+      ${routes.length===0?'<div class="alert alert-info">No routes yet.</div>':routes.map(r=>{
+        const pax=(State.db.assignments||[]).filter(a=>a.routeId===r.id&&a.status==='Active');
+        return `<div class="panel"><div class="panel-header"><h5><i class="fas fa-route"></i> ${Util.esc(r.routeName||r.id)} — ${Util.esc(r.shiftName||'')}</h5>
+          <span class="badge-status badge-info">${pax.length} passengers</span></div>
+          <div class="panel-body"><table class="data-table"><thead><tr><th>Employee</th><th>Pickup Stop</th><th>Seat</th><th>Vehicle</th><th>Driver</th></tr></thead>
+          <tbody>${pax.length===0?'<tr><td colspan="5" style="text-align:center;color:#94a3b8;">No passengers</td></tr>':
+            pax.map(p=>`<tr><td>${Util.esc(p.employeeName||p.employeeId)}</td><td>${Util.esc(p.pickupStop||'')}</td>
+              <td>${Util.esc(p.seatNumber||'')}</td><td>${Util.esc(p.vehicleReg||'')}</td><td>${Util.esc(p.driverName||'')}</td></tr>`).join('')}
+          </tbody></table></div></div>`;
+      }).join('')}
+    `;
+  },
+  render_complaints(){
+    const cols=[{key:'id',label:'ID'},{key:'date',label:'Date'},{key:'employeeName',label:'Employee'},
+      {key:'category',label:'Category'},{key:'priority',label:'Priority'},{key:'status',label:'Status'},{key:'assignedTo',label:'Assigned To'}];
+    document.getElementById('pageContent').innerHTML=`
+      <div class="page-header"><div><h2>Complaints</h2><div class="sub">${(State.db.complaints||[]).length} complaints</div></div>
+      <button class="btn btn-primary btn-sm" onclick="App.addRecord('complaints')"><i class="fas fa-plus"></i> New Complaint</button></div>
+      <div class="panel">${this.genericTable('complaints',cols)}</div>`;
+  },
+  render_changeRequests(){
+    const cols=[{key:'id',label:'ID'},{key:'requestDate',label:'Date'},{key:'employeeName',label:'Employee'},
+      {key:'requestType',label:'Type'},{key:'requiredDate',label:'Required'},{key:'status',label:'Status',
+        render:r=>{
+          const map={Pending:'badge-warn',Approved:'badge-info',Completed:'badge-active',Rejected:'badge-inactive',Cancelled:'badge-gray'};
+          return `<span class="badge-status ${map[r.status]||'badge-gray'}">${Util.esc(r.status||'')}</span>`;
+        }},
+      {key:'applied',label:'Applied',render:r=>r.applied?'<span class="badge-status badge-active">Yes</span>':'<span class="badge-status badge-gray">No</span>'}];
+    document.getElementById('pageContent').innerHTML=`
+      <div class="page-header"><div><h2>Change Requests</h2><div class="sub">${(State.db.changeRequests||[]).length} requests · Approving a request auto-updates the employee record</div></div>
+      <button class="btn btn-primary btn-sm" onclick="App.addRecord('changeRequests')"><i class="fas fa-plus"></i> New Request</button></div>
+      <div class="panel">${this.genericTable('changeRequests',cols, r => (r.status !== 'Completed' && !r.applied) ? `<button class="btn-icon" title="Apply to Employee" onclick="App.applyChangeRequest('${r.id}')"><i class="fas fa-check"></i></button>` : '')}</div>`;
+  },
+
+  render_reports(){
+    const shiftRep = Reports.buildShiftWiseReport();
+    const stopRep = Reports.buildStopWiseReport();
+    const vehRep = Reports.buildVehicleWiseReport();
+
+    document.getElementById('pageContent').innerHTML=`
+      <div class="page-header">
+        <div><h2>Reports</h2><div class="sub">Generate and download transport reports in Excel or PDF</div></div>
+        <div class="d-flex gap-2 flex-wrap">
+          <button class="btn btn-outline-success btn-sm" onclick="Reports.exportAllExcel()"><i class="fas fa-file-excel"></i> Download All (Excel)</button>
+          <button class="btn btn-outline-danger btn-sm" onclick="Reports.exportAllPDF()"><i class="fas fa-file-pdf"></i> Download All (PDF)</button>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-md-4">
+          <div class="report-card">
+            <div class="head">
+              <div class="icon icon-blue"><i class="fas fa-clock"></i></div>
+              <div><h6>Shift-wise Report</h6><p>Employees grouped by shift</p></div>
+            </div>
+            <div class="preview"><strong>${shiftRep.rows.length}</strong> records · ${shiftRep.summary.length} shifts</div>
+            <div class="btns">
+              <button class="btn btn-outline-success btn-sm" onclick="Reports.exportExcel(Reports.buildShiftWiseReport())"><i class="fas fa-file-excel"></i> Excel</button>
+              <button class="btn btn-outline-danger btn-sm" onclick="Reports.exportPDF(Reports.buildShiftWiseReport())"><i class="fas fa-file-pdf"></i> PDF</button>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="report-card">
+            <div class="head">
+              <div class="icon icon-orange"><i class="fas fa-map-pin"></i></div>
+              <div><h6>Stop-wise Report</h6><p>Employees grouped by pickup stop</p></div>
+            </div>
+            <div class="preview"><strong>${stopRep.rows.length}</strong> records · ${stopRep.summary.length} stops</div>
+            <div class="btns">
+              <button class="btn btn-outline-success btn-sm" onclick="Reports.exportExcel(Reports.buildStopWiseReport())"><i class="fas fa-file-excel"></i> Excel</button>
+              <button class="btn btn-outline-danger btn-sm" onclick="Reports.exportPDF(Reports.buildStopWiseReport())"><i class="fas fa-file-pdf"></i> PDF</button>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="report-card">
+            <div class="head">
+              <div class="icon icon-green"><i class="fas fa-truck"></i></div>
+              <div><h6>Vehicle-wise Report</h6><p>Employees grouped by vehicle</p></div>
+            </div>
+            <div class="preview"><strong>${vehRep.rows.length}</strong> records · ${vehRep.summary.length} vehicles</div>
+            <div class="btns">
+              <button class="btn btn-outline-success btn-sm" onclick="Reports.exportExcel(Reports.buildVehicleWiseReport())"><i class="fas fa-file-excel"></i> Excel</button>
+              <button class="btn btn-outline-danger btn-sm" onclick="Reports.exportPDF(Reports.buildVehicleWiseReport())"><i class="fas fa-file-pdf"></i> PDF</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  render_importExport(){
+    document.getElementById('pageContent').innerHTML=`
+      <div class="page-header"><div><h2>Import / Export</h2><div class="sub">Data interchange</div></div></div>
+      <div class="row g-3">
+        <div class="col-md-6"><div class="panel"><div class="panel-header"><h5><i class="fas fa-file-import"></i> Import Excel / CSV</h5></div>
+          <div class="panel-body"><p style="color:var(--gray);font-size:13px;">Import employee transport data. Duplicates are automatically skipped. Data is saved to Firebase.</p>
+          <button class="btn btn-primary" onclick="App.importWizard()"><i class="fas fa-upload"></i> Start Import Wizard</button></div></div></div>
+        <div class="col-md-6"><div class="panel"><div class="panel-header"><h5><i class="fas fa-file-export"></i> Export / Backup</h5></div>
+          <div class="panel-body"><div class="d-grid gap-2">
+            <button class="btn btn-outline-success" onclick="App.backupAll()"><i class="fas fa-database"></i> Full JSON Backup</button>
+            <button class="btn btn-outline-primary" onclick="App.exportCollection('employees')"><i class="fas fa-file-excel"></i> Export Employees (Excel)</button>
+            <button class="btn btn-outline-primary" onclick="App.exportCollection('routes')"><i class="fas fa-file-excel"></i> Export Routes (Excel)</button>
+            <button class="btn btn-outline-secondary" onclick="document.getElementById('restoreInput').click()"><i class="fas fa-undo"></i> Restore from Backup</button>
+            <input type="file" id="restoreInput" accept=".json" style="display:none;" onchange="App.restoreBackup(this.files[0])">
+          </div></div></div></div>
+      </div>`;
+  },
+
+  render_users(){
+    const cols=[
+      {key:'id',label:'ID'},
+      {key:'username',label:'Username'},
+      {key:'name',label:'Full Name'},
+      {key:'role',label:'Role',render:r=>`<span class="badge-status badge-info">${Util.esc(ROLES[r.role]?.name||r.role)}</span>`},
+      {key:'permissions',label:'Allowed Pages',render:r=>{
+        if(r.permissions && r.permissions.includes('*')) return '<span class="badge-status badge-active">All</span>';
+        const cnt = (r.permissions||[]).length;
+        return `<span class="badge-status badge-gray">${cnt} page${cnt===1?'':'s'}</span>`;
+      }},
+      {key:'active',label:'Active',render:r=>r.active?'<span class="badge-status badge-active">Yes</span>':'<span class="badge-status badge-inactive">No</span>'}
+    ];
+    document.getElementById('pageContent').innerHTML=`
+      <div class="page-header">
+        <div><h2>User Management</h2><div class="sub">${State.users.length} users · synced to Firebase</div></div>
+        <button class="btn btn-primary btn-sm" onclick="App.addRecord('users')"><i class="fas fa-plus"></i> Add User</button>
+      </div>
+      <div class="panel">${this.genericTable('users',cols)}</div>`;
+  },
+
+  render_settings(){
+    document.getElementById('pageContent').innerHTML=`
+      <div class="page-header"><div><h2>Settings</h2><div class="sub">Configuration & data management</div></div></div>
+
+      <div class="panel">
+        <div class="panel-header"><h5><i class="fas fa-user-shield"></i> My Account</h5></div>
+        <div class="panel-body">
+          <table class="data-table">
+            <tr><td style="width:200px;"><strong>Username</strong></td><td>${Util.esc(State.currentUser?.username||'-')}</td></tr>
+            <tr><td><strong>Full Name</strong></td><td>${Util.esc(State.currentUser?.name||'-')}</td></tr>
+            <tr><td><strong>Role</strong></td><td>${Util.esc(ROLES[State.currentUser?.role]?.name||'-')}</td></tr>
+            <tr><td><strong>Status</strong></td><td><span class="badge-status badge-active">Active</span></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h5><i class="fas fa-cloud"></i> Firebase Connection</h5></div>
+        <div class="panel-body">
+          <table class="data-table">
+            <tr><td><strong>Project ID</strong></td><td>${Util.esc(firebaseConfig.projectId)}</td></tr>
+            <tr><td><strong>Auth Domain</strong></td><td>${Util.esc(firebaseConfig.authDomain)}</td></tr>
+            <tr><td><strong>Status</strong></td><td><span class="badge-status badge-active" id="firebaseStatusBadge">${State.firebaseOnline?'Connected':'Offline'}</span></td></tr>
+            <tr><td><strong>Storage</strong></td><td>Cloud Firestore (real-time)</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h5><i class="fas fa-info-circle"></i> System Status</h5></div>
+        <div class="panel-body">
+          <table class="data-table">
+            <tr><td><strong>Total Records</strong></td><td>${COLLECTIONS.reduce((s,c)=>s+(State.db[c]||[]).length,0)}</td></tr>
+            <tr><td><strong>Users</strong></td><td>${State.users.length}</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h5><i class="fas fa-cog"></i> Data Management</h5></div>
+        <div class="panel-body">
+          <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-outline-success btn-sm" onclick="App.backupAll()"><i class="fas fa-download"></i> Backup All Data</button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('settingsRestore').click()"><i class="fas fa-undo"></i> Restore Backup</button>
+            <button class="btn btn-outline-primary btn-sm" onclick="App.reloadFromFirebase()"><i class="fas fa-sync"></i> Reload from Firebase</button>
+            <input type="file" id="settingsRestore" accept=".json" style="display:none;" onchange="App.restoreBackup(this.files[0])">
+          </div>
+        </div>
+      </div>`;
+  }
+};
+
+/* ========== CHARTS ========== */
+const Charts = {
+  destroy(id){ if(State.charts[id]){State.charts[id].destroy();delete State.charts[id];} },
+  renderDashboard(){
+    this.destroy('empByRoute');this.destroy('empByShift');this.destroy('routeOcc');this.destroy('vehUtil');
+    const routes=State.db.routes||[], shifts=State.db.shifts||[], asn=State.db.assignments||[], veh=State.db.vehicles||[];
+
+    const c1=document.getElementById('chartEmpByRoute');
+    if(c1){ const labels=routes.map(r=>r.routeName||r.id);
+      const data=routes.map(r=>asn.filter(a=>a.routeId===r.id&&a.status==='Active').length);
+      State.charts.empByRoute=new Chart(c1,{type:'bar',data:{labels:labels.length?labels:['No routes'],datasets:[{label:'Employees',data:data.length?data:[0],backgroundColor:'#3b82f6'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+    }
+    const c2=document.getElementById('chartEmpByShift');
+    if(c2){ const labels=shifts.length?shifts.map(s=>s.shiftName||s.id):['General Shift','Three Shift'];
+      const data=labels.map(l=>asn.filter(a=>a.shiftName===l&&a.status==='Active').length);
+      State.charts.empByShift=new Chart(c2,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6']}]},options:{responsive:true,maintainAspectRatio:false}});
+    }
+    const c3=document.getElementById('chartRouteOcc');
+    if(c3){ const labels=routes.map(r=>r.routeName||r.id);
+      const occ=routes.map(r=>asn.filter(a=>a.routeId===r.id&&a.status==='Active').length);
+      const cap=routes.map(r=>parseInt(r.capacity)||0);
+      State.charts.routeOcc=new Chart(c3,{type:'bar',data:{labels:labels.length?labels:['No routes'],datasets:[{label:'Occupied',data:occ.length?occ:[0],backgroundColor:'#10b981'},{label:'Capacity',data:cap.length?cap:[0],backgroundColor:'#e2e8f0'}]},options:{responsive:true,maintainAspectRatio:false}});
+    }
+    const c4=document.getElementById('chartVehUtil');
+    if(c4){ const labels=veh.map(v=>v.registrationNumber||v.id);
+      const data=veh.map(v=>{const used=asn.filter(a=>a.vehicleId===v.id&&a.status==='Active').length;return v.seatingCapacity?Math.round(used/v.seatingCapacity*100):0;});
+      State.charts.vehUtil=new Chart(c4,{type:'bar',data:{labels:labels.length?labels:['No vehicles'],datasets:[{label:'Utilization %',data:data.length?data:[0],backgroundColor:data.map(d=>d>100?'#ef4444':d>80?'#f59e0b':'#10b981')}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}}}});
+    }
+  }
+};
+
+/* ========== SCHEMAS ========== */
+const Schemas = {
+  employees:{ label:'Employee', fields:[
+    {key:'employeeCode',label:'Employee Code'},{key:'employeeName',label:'Employee Name',required:true},
+    {key:'department',label:'Department'},{key:'designation',label:'Designation'},{key:'company',label:'Company'},
+    {key:'contactNumber',label:'Contact Number'},{key:'cnic',label:'CNIC'},
+    {key:'gender',label:'Gender',type:'select',options:['','Male','Female','Other']},
+    {key:'city',label:'City'},{key:'pickupStop',label:'Pickup Stop'},{key:'routeName',label:'Route Name'},
+    {key:'shiftName',label:'Shift Name'},{key:'vehicleReg',label:'Vehicle Registration'},
+    {key:'transportStatus',label:'Transport Status',type:'select',options:['Active','Inactive','None']},
+    {key:'employeeStatus',label:'Employee Status',type:'select',options:['Active','Inactive']},
+    {key:'joiningDate',label:'Joining Date',type:'date'},{key:'remarks',label:'Remarks',type:'textarea',full:true}
+  ]},
+  routes:{ label:'Route', fields:[
+    {key:'routeCode',label:'Route Code'},{key:'routeName',label:'Route Name',required:true},
+    {key:'startingPoint',label:'Starting Point'},{key:'destination',label:'Destination'},
+    {key:'area',label:'Area'},{key:'distance',label:'Distance (km)',type:'number'},
+    {key:'shiftName',label:'Shift'},{key:'capacity',label:'Capacity',type:'number'},
+    {key:'status',label:'Status',type:'select',options:['Active','Inactive']},
+    {key:'remarks',label:'Remarks',type:'textarea',full:true}
+  ]},
+  stops:{ label:'Stop', fields:[
+    {key:'stopName',label:'Stop Name',required:true},{key:'routeName',label:'Route'},{key:'area',label:'Area'},
+    {key:'address',label:'Address',full:true},{key:'sequence',label:'Sequence',type:'number'},
+    {key:'pickupTime',label:'Pickup Time'},{key:'dropTime',label:'Drop Time'},
+    {key:'status',label:'Status',type:'select',options:['Active','Inactive']}
+  ]},
+  vehicles:{ label:'Vehicle', fields:[
+    {key:'registrationNumber',label:'Registration Number',required:true},{key:'vehicleType',label:'Vehicle Type'},
+    {key:'make',label:'Make'},{key:'model',label:'Model'},{key:'modelYear',label:'Model Year',type:'number'},
+    {key:'seatingCapacity',label:'Seating Capacity',type:'number'},{key:'ownershipType',label:'Ownership',type:'select',options:['Owned','Vendor','Leased']},
+    {key:'vendor',label:'Vendor'},{key:'vendorContact',label:'Vendor Contact'},
+    {key:'fuelType',label:'Fuel Type',type:'select',options:['Diesel','Petrol','CNG','Electric','Hybrid']},
+    {key:'currentOdometer',label:'Current Odometer',type:'number'},
+    {key:'fitnessExpiry',label:'Fitness Expiry',type:'date'},{key:'insuranceExpiry',label:'Insurance Expiry',type:'date'},
+    {key:'permitExpiry',label:'Permit Expiry',type:'date'},{key:'taxExpiry',label:'Tax Expiry',type:'date'},
+    {key:'status',label:'Status',type:'select',options:['Active','Inactive','Under Maintenance','Accident','Standby','Sold']},
+    {key:'remarks',label:'Remarks',type:'textarea',full:true}
+  ]},
+  drivers:{ label:'Driver', fields:[
+    {key:'name',label:'Driver Name',required:true},{key:'cnic',label:'CNIC'},{key:'contact',label:'Contact'},
+    {key:'emergencyContact',label:'Emergency Contact'},{key:'licenseNumber',label:'License Number'},
+    {key:'licenseType',label:'License Type'},{key:'licenseExpiry',label:'License Expiry',type:'date'},
+    {key:'vendor',label:'Vendor'},{key:'joiningDate',label:'Joining Date',type:'date'},
+    {key:'status',label:'Status',type:'select',options:['Active','Inactive','On Leave','Suspended']},
+    {key:'remarks',label:'Remarks',type:'textarea',full:true}
+  ]},
+  shifts:{ label:'Shift', fields:[
+    {key:'shiftCode',label:'Shift Code'},{key:'shiftName',label:'Shift Name',required:true},
+    {key:'startTime',label:'Start Time'},{key:'endTime',label:'End Time'},
+    {key:'graceTime',label:'Grace Time (min)',type:'number'},
+    {key:'pickupTime',label:'Pickup Time'},{key:'dropTime',label:'Drop Time'},
+    {key:'status',label:'Status',type:'select',options:['Active','Inactive']}
+  ]},
+  assignments:{ label:'Assignment', fields:[
+    {key:'employeeId',label:'Employee',type:'select',options:(State.db.employees||[]).map(e=>({value:e.id,label:(e.employeeName||'')+' ('+(e.employeeCode||e.id)+')'}))},
+    {key:'routeId',label:'Route',type:'select',options:(State.db.routes||[]).map(r=>({value:r.id,label:r.routeName}))},
+    {key:'shiftId',label:'Shift',type:'select',options:(State.db.shifts||[]).map(s=>({value:s.id,label:s.shiftName}))},
+    {key:'vehicleId',label:'Vehicle',type:'select',options:(State.db.vehicles||[]).map(v=>({value:v.id,label:v.registrationNumber}))},
+    {key:'driverId',label:'Driver',type:'select',options:(State.db.drivers||[]).map(d=>({value:d.id,label:d.name}))},
+    {key:'pickupStop',label:'Pickup Stop'},{key:'dropStop',label:'Drop Stop'},{key:'seatNumber',label:'Seat Number'},
+    {key:'effectiveFrom',label:'Effective From',type:'date'},{key:'effectiveTo',label:'Effective To',type:'date'},
+    {key:'status',label:'Status',type:'select',options:['Active','Inactive']},{key:'remarks',label:'Remarks',type:'textarea',full:true}
+  ]},
+  complaints:{ label:'Complaint', fields:[
+    {key:'date',label:'Date',type:'date',required:true},
+    {key:'employeeId',label:'Employee',type:'select',options:(State.db.employees||[]).map(e=>({value:e.id,label:e.employeeName}))},
+    {key:'category',label:'Category',type:'select',options:['Driver','Vehicle','Route','Pickup/Drop','Timing','Behaviour','Safety','Overcrowding','Other']},
+    {key:'description',label:'Description',type:'textarea',required:true,full:true},
+    {key:'priority',label:'Priority',type:'select',options:['Low','Medium','High','Critical']},
+    {key:'assignedTo',label:'Assigned To'},{key:'status',label:'Status',type:'select',options:['Open','In Progress','Resolved','Closed']},
+    {key:'actionTaken',label:'Action Taken',type:'textarea',full:true},{key:'resolutionDate',label:'Resolution Date',type:'date'}
+  ]},
+  changeRequests:{ label:'Change Request', fields:[
+    {key:'requestDate',label:'Request Date',type:'date',required:true},
+    {key:'employeeId',label:'Employee',type:'select',options:(State.db.employees||[]).map(e=>({value:e.id,label:e.employeeName+' ('+(e.employeeCode||e.id)+')'}))},
+    {key:'requestType',label:'Request Type',type:'select',options:[
+      'New Transport','Remove Transport','Route Change','Stop Change','Vehicle Change','Shift Change','Driver Change','Route & Timing Change','Temporary Transport'
+    ]},
+    {key:'currentAssignment',label:'Current Assignment'},
+    {key:'requestedRoute',label:'Requested Route (for Route Change)'},
+    {key:'requestedStop',label:'Requested Stop (for Stop Change)'},
+    {key:'requestedShift',label:'Requested Shift (for Shift Change)'},
+    {key:'requestedPickupTime',label:'Requested Pickup Time'},
+    {key:'requestedDropTime',label:'Requested Drop Time'},
+    {key:'requestedVehicle',label:'Requested Vehicle'},
+    {key:'requestedDriver',label:'Requested Driver'},
+    {key:'reason',label:'Reason',type:'textarea',required:true,full:true},
+    {key:'requiredDate',label:'Required Date',type:'date'},
+    {key:'status',label:'Status',type:'select',options:['Pending','Approved','Rejected','Completed','Cancelled']},
+    {key:'approvedBy',label:'Approved By'},{key:'remarks',label:'Remarks',type:'textarea',full:true}
+  ]}
+};
+
+/* ========== APP ========== */
+const App = {
+  openUserMenu(){
+    Modal.show({title:'My Account', body:`
+      <p><strong>Username:</strong> ${Util.esc(State.currentUser?.username||'-')}</p>
+      <p><strong>Name:</strong> ${Util.esc(State.currentUser?.name||'-')}</p>
+      <p><strong>Role:</strong> ${Util.esc(ROLES[State.currentUser?.role]?.name||'-')}</p>`,
+      footer:`<button class="btn btn-secondary" onclick="Modal.close()">Close</button>`});
+  },
+  onGlobalSearch: Util.debounce(function(v){
+    State.globalSearch=v;
+    if(!v) return;
+    if(State.currentPage!=='employees') UI.go('employees');
+    const t=State.tables['employees']||(State.tables['employees']={page:1,perPage:25,sort:'',dir:'asc',search:''});
+    t.search=v; Render.page('employees');
+  },350),
+  addRecord(c){
+    const schema=Schemas[c];
+    if(!schema){ Util.toast('No schema for '+c,'warning'); return; }
+    Modal.show({title:'Add '+schema.label, size:'lg', body:this.buildForm(schema,{},c),
+      footer:`<button class="btn btn-secondary" onclick="Modal.close()">Cancel</button>
+              <button class="btn btn-primary" onclick="App.saveNew('${c}')"><i class="fas fa-save"></i> Save</button>`});
+  },
+  editRecord(c,id){
+    const rec=c==='users'?State.users.find(u=>u.id===id):DataService.getById(c,id);
+    if(!rec){ Util.toast('Record not found','error'); return; }
+    const schema=Schemas[c];
+    if(!schema){
+      // User edit fallback
+      Modal.show({title:'Edit User', size:'lg', body:this.buildForm({fields:[
+        {key:'username',label:'Username',required:true},{key:'password',label:'Password',required:true},
+        {key:'name',label:'Full Name',required:true},
+        {key:'role',label:'Role',type:'select',options:[{value:'admin',label:'Administrator'},{value:'manager',label:'Transport Manager'},{value:'officer',label:'Transport Officer'},{value:'viewer',label:'Viewer'}]},
+        {key:'active',label:'Active',type:'select',options:[{value:true,label:'Yes'},{value:false,label:'No'}]}
+      ]},rec,'users'),
+      footer:`<button class="btn btn-secondary" onclick="Modal.close()">Cancel</button>
+              <button class="btn btn-primary" onclick="App.saveEdit('users','${id}')"><i class="fas fa-save"></i> Save</button>`});
+      return;
+    }
+    Modal.show({title:'Edit '+schema.label, size:'lg', body:this.buildForm(schema,rec,c),
+      footer:`<button class="btn btn-secondary" onclick="Modal.close()">Cancel</button>
+              <button class="btn btn-primary" onclick="App.saveEdit('${c}','${id}')"><i class="fas fa-save"></i> Save</button>`});
+  },
+  viewRecord(c,id){
+    const rec=c==='users'?State.users.find(u=>u.id===id):DataService.getById(c,id);
+    if(!rec) return;
+    const schema=Schemas[c];
+    let rows='';
+    if(schema && schema.fields){
+      rows = schema.fields.map(f=>`<tr><td style="width:180px;font-weight:600;">${Util.esc(f.label)}</td><td>${Util.esc(rec[f.key]??'')}</td></tr>`).join('');
+    } else {
+      rows = Object.keys(rec).map(k=>`<tr><td style="width:180px;font-weight:600;">${Util.esc(k)}</td><td>${Util.esc(rec[k])}</td></tr>`).join('');
+    }
+    if(c==='users'){
+      const perms = rec.permissions || [];
+      const permText = perms.includes('*') ? 'All pages' : perms.join(', ') || 'None';
+      rows += `<tr><td style="font-weight:600;">Permissions</td><td>${Util.esc(permText)}</td></tr>`;
+    }
+    Modal.show({title:(schema?.label||c)+' — '+(rec.id||''), size:'lg', body:`<table class="data-table">${rows}</table>`,
+      footer:`<button class="btn btn-secondary" onclick="Modal.close()">Close</button>`});
+  },
+  async deleteRecord(c,id){
+    if(!(await Util.confirm('Delete this record? This cannot be undone.','Confirm Delete'))) return;
+    try{
+      if(c==='users'){
+        if(id===State.currentUser?.id){ Util.toast('Cannot delete your own account','error'); return; }
+        await DataService.deleteUser(id);
+      } else {
+        await DataService.delete(c,id);
+      }
+      Util.toast('Deleted','success'); Render.page(State.currentPage);
+    } catch(e){ Util.toast('Delete failed: '+e.message,'error'); }
+  },
+  buildForm(schema,rec,coll){
+    let html='<div class="form-grid">';
+    (schema.fields||[]).forEach(f=>{
+      const v=rec[f.key]!==undefined?rec[f.key]:(f.default||'');
+      const cls=f.full?'form-group full':'form-group';
+      if(f.type==='select'){
+        html+=`<div class="${cls}"><label>${Util.esc(f.label)}${f.required?' *':''}</label>
+          <select id="fld_${f.key}">${(f.options||[]).map(o=>{
+            const val=o.value!==undefined?o.value:o; const lab=o.label!==undefined?o.label:o;
+            return `<option ${String(v)===String(val)?'selected':''} value="${Util.esc(val)}">${Util.esc(lab)}</option>`;
+          }).join('')}</select></div>`;
+      } else if(f.type==='textarea'){
+        html+=`<div class="${cls}"><label>${Util.esc(f.label)}${f.required?' *':''}</label>
+          <textarea id="fld_${f.key}" rows="3">${Util.esc(v)}</textarea></div>`;
+      } else {
+        html+=`<div class="${cls}"><label>${Util.esc(f.label)}${f.required?' *':''}</label>
+          <input id="fld_${f.key}" type="${f.type||'text'}" value="${Util.esc(v)}"></div>`;
+      }
+    });
+    html+='</div>';
+    if(coll === 'users'){
+      const perms = rec.permissions || (rec.role && ROLES[rec.role]?.pages) || [];
+      const isAll = perms.includes('*');
+      html += `<div class="form-group full" style="margin-top:16px;">
+        <label>Page Permissions</label>
+        <div style="margin-bottom:8px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;padding:6px 0;">
+            <input type="checkbox" id="permAll" ${isAll?'checked':''} onchange="App.toggleAllPerms(this.checked)">
+            Grant access to ALL pages (full admin)
+          </label>
+        </div>
+        <div class="perm-grid" id="permGrid">
+          ${AVAILABLE_PAGES.map(p=>`
+            <label>
+              <input type="checkbox" class="perm-check" value="${p.key}" ${isAll||perms.includes(p.key)?'checked':''} ${isAll?'disabled':''}>
+              ${Util.esc(p.label)}
+            </label>
+          `).join('')}
+        </div>
+      </div>`;
+    }
+    return html;
+  },
+  toggleAllPerms(checked){
+    document.querySelectorAll('.perm-check').forEach(c=>{
+      c.disabled = checked;
+      if(checked) c.checked = true;
+    });
+  },
+  collectForm(schema, coll){
+    const data={};
+    (schema.fields||[]).forEach(f=>{
+      const el=document.getElementById('fld_'+f.key);
+      if(el) data[f.key]= f.type==='number'?(el.value===''?'':Number(el.value)):el.value;
+    });
+    if(coll === 'users'){
+      const isAll = document.getElementById('permAll')?.checked;
+      if(isAll){
+        data.permissions = ['*'];
+      } else {
+        data.permissions = Array.from(document.querySelectorAll('.perm-check:checked')).map(c=>c.value);
+        if(data.permissions.length === 0) throw new Error('Select at least one page permission');
+      }
+    }
+    return data;
+  },
+  async saveNew(c){
+    const schema=Schemas[c] || { fields:[] };
+    try{
+      let data;
+      if(c==='users'){
+        // Manual user schema
+        data = {
+          username: document.getElementById('fld_username').value.trim(),
+          password: document.getElementById('fld_password').value.trim(),
+          name: document.getElementById('fld_name').value.trim(),
+          role: document.getElementById('fld_role').value,
+          active: document.getElementById('fld_active').value === 'true' || document.getElementById('fld_active').value === true,
+        };
+        if(!data.username || !data.password || !data.name) throw new Error('Username, password and name are required');
+        const isAll = document.getElementById('permAll')?.checked;
+        data.permissions = isAll ? ['*'] : Array.from(document.querySelectorAll('.perm-check:checked')).map(c=>c.value);
+        if(data.permissions.length === 0) throw new Error('Select at least one page permission');
+        data.id = ID.gen('users');
+        await DataService.addUser(data);
+      } else {
+        data = this.collectForm(schema, c);
+        for(const f of schema.fields||[]) if(f.required) Validate.required(data[f.key],f.label);
+        await DataService.add(c,data);
+        if(c==='changeRequests') this.maybeAutoApply(data);
+      }
+      Modal.close(); Util.toast('Saved to Firebase','success'); Render.page(State.currentPage);
+    } catch(e){ Util.toast(e.message,'error'); }
+  },
+  async saveEdit(c,id){
+    const schema=Schemas[c] || { fields:[] };
+    try{
+      let data;
+      if(c==='users'){
+        data = {
+          username: document.getElementById('fld_username').value.trim(),
+          password: document.getElementById('fld_password').value.trim(),
+          name: document.getElementById('fld_name').value.trim(),
+          role: document.getElementById('fld_role').value,
+          active: document.getElementById('fld_active').value === 'true' || document.getElementById('fld_active').value === true,
+        };
+        if(!data.username || !data.password || !data.name) throw new Error('Username, password and name are required');
+        const isAll = document.getElementById('permAll')?.checked;
+        data.permissions = isAll ? ['*'] : Array.from(document.querySelectorAll('.perm-check:checked')).map(c=>c.value);
+        if(data.permissions.length === 0) throw new Error('Select at least one page permission');
+        await DataService.updateUser(id, data);
+      } else {
+        data = this.collectForm(schema, c);
+        for(const f of schema.fields||[]) if(f.required) Validate.required(data[f.key],f.label);
+        await DataService.update(c,id,data);
+        if(c==='changeRequests'){
+          const updated = DataService.getById('changeRequests', id);
+          this.maybeAutoApply(updated);
+        }
+      }
+      Modal.close(); Util.toast('Updated in Firebase','success'); Render.page(State.currentPage);
+    } catch(e){ Util.toast(e.message,'error'); }
+  },
+  maybeAutoApply(cr){
+    if(cr && (cr.status === 'Approved' || cr.status === 'Completed') && !cr.applied){
+      ChangeRequestApply.apply(cr);
+      cr.applied = true;
+      cr.appliedAt = Util.now();
+      // Persist
+      fbDb.collection('changeRequests').doc(cr.id).set({ applied:true, appliedAt:cr.appliedAt, status:cr.status }, { merge:true }).catch(()=>{});
+      const idx = (State.db.changeRequests||[]).findIndex(x=>x.id===cr.id);
+      if(idx>=0){ State.db.changeRequests[idx].applied = true; State.db.changeRequests[idx].appliedAt = cr.appliedAt; }
+      Util.toast('Change request applied to employee record','success');
+    }
+  },
+  async applyChangeRequest(id){
+    const cr = DataService.getById('changeRequests', id);
+    if(!cr) return;
+    if(!(await Util.confirm('Apply this change request to the employee record now?','Confirm Apply'))) return;
+    try{
+      ChangeRequestApply.apply(cr);
+      await DataService.update('changeRequests', id, { status:'Completed', applied:true, appliedAt:Util.now() });
+      Util.toast('Change applied successfully','success');
+      Render.page('changeRequests');
+    } catch(e){ Util.toast('Apply failed: '+e.message,'error'); }
+  },
+  exportCollection(c){
+    const recs=State.db[c]||[];
+    if(recs.length===0){ Util.toast('No records to export','warning'); return; }
+    const ws=XLSX.utils.json_to_sheet(recs); const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,c); XLSX.writeFile(wb,`${c}-${Util.today()}.xlsx`);
+    Util.toast('Exported '+recs.length+' records','success');
+  },
+  backupAll(){
+    const b = { exportedAt:Util.now(), version:1, data:{}, users: State.users };
+    COLLECTIONS.forEach(c=>{ if(c!=='users') b.data[c]=State.db[c]||[]; });
+    Util.download(`transport-backup-${Util.today()}.json`,JSON.stringify(b,null,2));
+    Util.toast('Backup downloaded','success');
+  },
+  async restoreBackup(file){
+    if(!file) return;
+    try{
+      const text=await file.text(); const b=JSON.parse(text);
+      if(!b.data && !b.users) throw new Error('Invalid backup');
+      if(!(await Util.confirm('Restore this backup to Firebase? Current data will be replaced.','Confirm Restore'))) return;
+      await DataService.restoreBackup(b);
+      Util.toast('Restore complete — reloading','success');
+      setTimeout(()=>location.reload(), 1000);
+    } catch(e){ Util.toast('Restore failed: '+e.message,'error'); }
+  },
+  async reloadFromFirebase(){
+    document.getElementById('loadingOverlay').style.display='flex';
+    try {
+      await loadDataFromFirebase();
+      Util.toast('Reloaded from Firebase','success');
+      Render.page(State.currentPage);
+    } catch(e){ Util.toast('Reload failed: '+e.message,'error'); }
+    document.getElementById('loadingOverlay').style.display='none';
+  },
+  importWizard(){
+    Modal.show({title:'Import Excel / CSV', size:'lg', body:`
+      <div class="alert alert-info" style="font-size:13px;">Supports .xlsx, .xls, .csv. Duplicates are skipped. Data saved to Firebase.</div>
+      <div class="form-group mb-3"><label>File</label>
+        <input type="file" id="importFile" accept=".xlsx,.xls,.csv" onchange="App.previewImport(this.files[0])"></div>
+      <div class="form-group mb-3"><label>Import Mode</label>
+        <select id="importMode">
+          <option value="skip">Skip duplicates (recommended)</option>
+          <option value="merge">Merge (update existing)</option>
+          <option value="append">Append all (may create duplicates)</option>
+        </select></div>
+      <div id="importPreview"></div>`,
+      footer:`<button class="btn btn-secondary" onclick="Modal.close()">Cancel</button>
+              <button class="btn btn-primary" id="importGoBtn" disabled onclick="App.runImport()"><i class="fas fa-upload"></i> Import to Firebase</button>`});
+  },
+  _importData:null,
+  async previewImport(file){
+    if(!file) return;
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    const sheet=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:''});
+    const recs=this.parseMultiBlock(rows);
+    this._importData=recs;
+    const p=document.getElementById('importPreview');
+    if(recs.length===0){ p.innerHTML='<div class="alert alert-warning">No records detected.</div>'; return; }
+    const existing = State.db.employees || [];
+    let dupCount = 0;
+    recs.forEach(r=>{
+      const dup = existing.find(e =>
+        (r.employeeCode && String(e.employeeCode)===String(r.employeeCode)) ||
+        (!r.employeeCode && e.employeeName===r.employeeName && e.pickupStop===r.pickupStop)
+      );
+      if(dup) dupCount++;
+    });
+    p.innerHTML=`<div class="alert alert-success">${recs.length} records detected. <strong>${dupCount}</strong> duplicate(s) (will be skipped).</div>
+      <div style="max-height:280px;overflow:auto;"><table class="data-table">
+        <thead><tr><th>Code</th><th>Name</th><th>Pickup</th><th>Route</th><th>Shift</th><th>Status</th></tr></thead>
+        <tbody>${recs.slice(0,40).map(r=>{
+          const dup = existing.find(e =>
+            (r.employeeCode && String(e.employeeCode)===String(r.employeeCode)) ||
+            (!r.employeeCode && e.employeeName===r.employeeName && e.pickupStop===r.pickupStop)
+          );
+          return `<tr style="${dup?'background:#fff7ed;':''}">
+            <td>${Util.esc(r.employeeCode)}</td><td>${Util.esc(r.employeeName)}</td>
+            <td>${Util.esc(r.pickupStop)}</td><td>${Util.esc(r.routeName)}</td><td>${Util.esc(r.shiftName)}</td>
+            <td>${dup?'<span class="badge-status badge-warn">Duplicate</span>':'<span class="badge-status badge-active">New</span>'}</td>
+          </tr>`;
+        }).join('')}
+        </tbody></table></div>`;
+    document.getElementById('importGoBtn').disabled=false;
+  },
+  parseMultiBlock(rows){
+    const blockStarts=[0,5,10,15,20];
+    const recs=[];
+    let headerRow=-1;
+    for(let i=0;i<Math.min(10,rows.length);i++) if(rows[i]&&rows[i].some(c=>String(c).trim()==='Employee Code')){headerRow=i;break;}
+    if(headerRow<0) return this.parseFlat(rows);
+    const meta={};
+    for(const col of blockStarts){
+      meta[col]={routeName:rows[0]&&rows[0][col+1]?String(rows[0][col+1]).trim():'',
+                 shiftName:rows[1]&&rows[1][col+1]?String(rows[1][col+1]).trim():''};
+    }
+    for(let r=headerRow+1;r<rows.length;r++){
+      const row=rows[r]; if(!row) continue;
+      for(const col of blockStarts){
+        const code=String(row[col]??'').trim(), name=String(row[col+1]??'').trim(),
+              pickup=String(row[col+2]??'').trim(), city=String(row[col+3]??'').trim();
+        if(!name||name==='undefined') continue;
+        if(code.startsWith('=')||name.startsWith('=')) continue;
+        recs.push({employeeCode:code,employeeName:name,pickupStop:pickup,city,routeName:meta[col].routeName,shiftName:meta[col].shiftName});
+      }
+    }
+    return recs;
+  },
+  parseFlat(rows){
+    if(rows.length<2) return [];
+    const headers=rows[0].map(h=>String(h).trim());
+    const recs=[];
+    for(let i=1;i<rows.length;i++){
+      const row=rows[i]; if(!row||row.every(c=>!c)) continue;
+      const o={}; headers.forEach((h,j)=>{if(h)o[h]=row[j];}); recs.push(o);
+    }
+    return recs;
+  },
+  async runImport(){
+    if(!this._importData) return;
+    const mode=document.getElementById('importMode').value;
+    const btn=document.getElementById('importGoBtn'); btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Importing...';
+    let imported=0,updated=0,skipped=0,errors=0;
+    for(const rec of this._importData){
+      try{
+        const existing=(State.db.employees||[]).find(e=>
+          (rec.employeeCode&&String(e.employeeCode)===String(rec.employeeCode))||
+          (!rec.employeeCode&&e.employeeName===rec.employeeName&&e.pickupStop===rec.pickupStop));
+        const payload={employeeCode:rec.employeeCode||'',employeeName:rec.employeeName,pickupStop:rec.pickupStop,
+          city:rec.city,routeName:rec.routeName,shiftName:rec.shiftName,employeeStatus:'Active',transportStatus:'Active'};
+        if(existing){
+          if(mode==='skip'){skipped++;continue;}
+          if(mode==='merge'){
+            await DataService.update('employees', existing.id, payload);
+            updated++;
+          } else {
+            await DataService.add('employees', payload);
+            imported++;
+          }
+        } else {
+          await DataService.add('employees', payload);
+          imported++;
+        }
+      } catch(e){ if(e.message.includes('already exists')) skipped++; else errors++; }
+    }
+    // Ensure routes and shifts exist
+    for(const rn of [...new Set(this._importData.map(r=>r.routeName).filter(Boolean))]){
+      const sn = this._importData.find(x=>x.routeName===rn)?.shiftName||'';
+      if(!(State.db.routes||[]).some(r=>r.routeName===rn && r.shiftName===sn)){
+        try { await DataService.add('routes',{routeName:rn,shiftName:sn,status:'Active',capacity:40}); } catch(e){}
+      }
+    }
+    for(const sn of [...new Set(this._importData.map(r=>r.shiftName).filter(Boolean))]){
+      if(!(State.db.shifts||[]).some(s=>s.shiftName===sn)){
+        try { await DataService.add('shifts',{shiftName:sn,shiftCode:sn.replace(/\s+/g,'').substring(0,6).toUpperCase(),status:'Active'}); } catch(e){}
+      }
+    }
+
+    Modal.close();
+    Util.toast(`Import complete — Imported: ${imported}, Updated: ${updated}, Skipped: ${skipped}, Errors: ${errors}`,'success',7000);
+    this._importData=null; Render.page(State.currentPage);
+  }
+};
+
+/* ========== VALIDATION ========== */
+const Validate = {
+  required(v,l){ if(v===undefined||v===null||String(v).trim()==='') throw new Error(`${l} is required`); }
+};
+
+/* ========== FIREBASE LOAD ========== */
+async function loadDataFromFirebase(){
+  const results = await FirestoreService.loadAll();
+  for(const c of COLLECTIONS){
+    if(c === 'users'){
+      State.users = results[c] || [];
+      // Ensure at least the admin exists
+      if(State.users.length === 0){
+        const admin = {
+          id:'USR-000001', username:'admin', password:'admin123',
+          name:'Administrator', role:'admin', active:true, permissions:['*']
+        };
+        await FirestoreService.add('users', admin);
+        State.users = [admin];
+      }
+    } else {
+      State.db[c] = results[c] || [];
+    }
+  }
+}
+
+/* ========== BOOTSTRAP ========== */
+async function bootstrap(){
+  const loading = document.getElementById('loadingOverlay');
+  const loadingMsg = document.getElementById('loadingMsg');
+
+  loadingMsg.textContent = 'Initializing Firebase…';
+  if(!initFirebase()){
+    loadingMsg.textContent = '❌ Firebase init failed. Check configuration.';
+    Util.toast('Firebase init failed','error',6000);
+    return;
+  }
+
+  loadingMsg.textContent = 'Checking database…';
+  try {
+    await DataService.seedIfEmpty();
+    await loadDataFromFirebase();
+    UI.setSyncState(true);
+    State.firebaseOnline = true;
+  } catch(e){
+    console.error(e);
+    loadingMsg.textContent = '❌ Failed to load: '+e.message;
+    Util.toast('Firebase load failed: '+e.message,'error',6000);
+    UI.setSyncState(false);
+    State.firebaseOnline = false;
+  }
+
+  // Hide loading, show login or session
+  loading.style.display = 'none';
+
+  const saved=localStorage.getItem('etms_user');
+  if(saved){
+    try{
+      const u=JSON.parse(saved);
+      const found=State.users.find(x=>x.username===u.username);
+      if(found){
+        State.currentUser=found;
+        State.currentRole=found.role;
+        document.getElementById('loginScreen').style.display='none';
+        document.getElementById('appContainer').style.display='flex';
+        document.getElementById('userName').textContent=found.name;
+        document.getElementById('userAvatar').textContent=found.name.charAt(0).toUpperCase();
+        UI.applyPermissions();
+        UI.go('dashboard');
+      } else {
+        document.getElementById('loginScreen').style.display='flex';
+      }
+    }catch(e){
+      document.getElementById('loginScreen').style.display='flex';
+    }
+  } else {
+    document.getElementById('loginScreen').style.display='flex';
+  }
+
+  document.querySelectorAll('.sidebar nav a').forEach(a=>a.addEventListener('click',()=>UI.go(a.dataset.page)));
+  document.getElementById('loginUser').addEventListener('keydown', e=>{
+    if(e.key==='Enter') document.getElementById('loginPass').focus();
+  });
+}
+
+/* ========== FIRESTORE REALTIME WATCHER ========== */
+function startRealtimeSync(){
+  // Watch each collection and refresh the UI when it changes
+  COLLECTIONS.forEach(coll=>{
+    fbDb.collection(coll).onSnapshot(snapshot=>{
+      const arr = [];
+      snapshot.forEach(doc => arr.push({ id: doc.id, ...doc.data() }));
+      if(coll === 'users'){
+        State.users = arr;
+      } else {
+        State.db[coll] = arr;
+      }
+      // Re-render current page if user is logged in
+      if(State.currentUser){
+        Render.page(State.currentPage);
+      }
+    }, err=>{
+      console.warn('Snapshot error ('+coll+'):', err);
+      UI.setSyncState(false);
+    });
+  });
+}
+
+/* ========== START ========== */
+document.addEventListener('DOMContentLoaded', async ()=>{
+  await bootstrap();
+  startRealtimeSync();
+  UI.setSyncState(true);
+});
+
+// expose for inline handlers
+window.App=App; window.UI=UI; window.Render=Render; window.Modal=Modal; window.Charts=Charts;
+window.State=State; window.Auth=Auth; window.DataService=DataService; window.Util=Util;
+window.ChangeRequestApply=ChangeRequestApply; window.DuplicateCheck=DuplicateCheck; window.Reports=Reports;
+</script>
+</body>
+</html>
